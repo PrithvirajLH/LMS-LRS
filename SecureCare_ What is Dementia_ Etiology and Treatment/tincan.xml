@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="utf-8"?>
+<tincan xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://projecttincan.com/tincan.xsd">
+	<activities>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv" type="http://adlnet.gov/expapi/activities/course">
+			<name lang="und">SecureCare: What is Dementia: Etiology and Treatment</name>
+			<description lang="und" />
+			<launch lang="und">index_lms.html</launch>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6TcrhqHmG6e" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">CS Logo</name>
+			<description lang="und">CS Logo</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/5xkDgkO8tyO" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Introduction</name>
+			<description lang="und">Introduction</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/5cdbqxJ0byG" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Dementia is a Growing Concern</name>
+			<description lang="und">Dementia is a Growing Concern</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6NjRhfkRNxC" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">What is Dementia?</name>
+			<description lang="und">What is Dementia?</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/67I2VYo7QKL" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/67I2VYo7QKL/5tLag0GUGX0" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+			<interactionType>matching</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>statement_6dqtz8S89Z5[.]choice_6Amnuyeliv1</correctResponsePattern>
+				<correctResponsePattern>statement_6dqtz8S89Z5[.]choice_6ejGtUDfUGT</correctResponsePattern>
+				<correctResponsePattern>statement_6dqtz8S89Z5[.]choice_5vCP2jGzPCe</correctResponsePattern>
+				<correctResponsePattern>statement_6PrkB2H65dr[.]choice_5alkIW0trlM</correctResponsePattern>
+				<correctResponsePattern>statement_6PrkB2H65dr[.]choice_6cyj65lhbtE</correctResponsePattern>
+				<correctResponsePattern>statement_6PrkB2H65dr[.]choice_5UonmGGaaFd</correctResponsePattern>
+			</correctResponsePatterns>
+			<source>
+				<component>
+					<id>statement_6dqtz8S89Z5</id>
+					<description lang="und">Symptoms-A - Rectangle</description>
+				</component>
+				<component>
+					<id>statement_6PrkB2H65dr</id>
+					<description lang="und">Causes-A - Rectangle</description>
+				</component>
+			</source>
+			<target>
+				<component>
+					<id>choice_6Amnuyeliv1</id>
+					<description lang="und">Confusion</description>
+				</component>
+				<component>
+					<id>choice_6ejGtUDfUGT</id>
+					<description lang="und">Memory Loss</description>
+				</component>
+				<component>
+					<id>choice_5vCP2jGzPCe</id>
+					<description lang="und">Difficult - Difficulty with tasks</description>
+				</component>
+				<component>
+					<id>choice_5alkIW0trlM</id>
+					<description lang="und">Alzheimers - Alzheimer’s</description>
+				</component>
+				<component>
+					<id>choice_6cyj65lhbtE</id>
+					<description lang="und">Brain Cell - Brain cell damage</description>
+				</component>
+				<component>
+					<id>choice_5UonmGGaaFd</id>
+					<description lang="und">Communication - Communication breakdown between brain cells</description>
+				</component>
+			</target>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6lT6uiwNvWl" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Pick One</name>
+			<description lang="und">Pick One</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6lT6uiwNvWl/6B7YSnTnLvi" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Pick One</name>
+			<description lang="und">Pick One</description>
+			<interactionType>choice</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>choice_5pbppdC3074</correctResponsePattern>
+			</correctResponsePatterns>
+			<choices>
+				<component>
+					<id>choice_5pbppdC3074</id>
+					<description lang="und">Dementia can also impact hearing and vision, which significantly affects daily care.</description>
+				</component>
+				<component>
+					<id>choice_6FZMjWhSjoE</id>
+					<description lang="und">Only a few people in Texas have dementia</description>
+				</component>
+				<component>
+					<id>choice_6DBkdhAtRNt</id>
+					<description lang="und">It mainly affects memory and doesn't impact care needs</description>
+				</component>
+				<component>
+					<id>choice_5xM6ewrKlez</id>
+					<description lang="und">Dementia is rare in the United States</description>
+				</component>
+			</choices>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6FrqSJWOLNi" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Etiology-What causes Dementia?</name>
+			<description lang="und">Etiology-What causes Dementia?</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/5bC1IsKR8XI" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Related Conditions</name>
+			<description lang="und">Related Conditions</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/5wBqUnsarIu" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Brain Changes and Their Impact</name>
+			<description lang="und">Brain Changes and Their Impact</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6iAz1kSHeOy" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Empowered Dementia Care</name>
+			<description lang="und">Empowered Dementia Care</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6ZlcYvpN3xM" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6ZlcYvpN3xM/6lcnYRSS2Y2" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+			<interactionType>matching</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>statement_6qbXp7ZxpAV[.]choice_6jZWvcyjUqI</correctResponsePattern>
+				<correctResponsePattern>statement_6nKIOaNGYBS[.]choice_5zMmXnNgUP2</correctResponsePattern>
+				<correctResponsePattern>statement_6nKIOaNGYBS[.]choice_6T0GK0vdipX</correctResponsePattern>
+				<correctResponsePattern>statement_6nKIOaNGYBS[.]choice_5qOzE0CYcie</correctResponsePattern>
+				<correctResponsePattern>statement_6nKIOaNGYBS[.]choice_6XtNuGpsXDu</correctResponsePattern>
+				<correctResponsePattern>statement_6nKIOaNGYBS[.]choice_5n63e82Pkl0</correctResponsePattern>
+				<correctResponsePattern>statement_6qbXp7ZxpAV[.]choice_6gcUJmvBRxT</correctResponsePattern>
+				<correctResponsePattern>statement_6nKIOaNGYBS[.]choice_6F7DEsTFATE</correctResponsePattern>
+				<correctResponsePattern>statement_6qbXp7ZxpAV[.]choice_6Ev11cRJkSp</correctResponsePattern>
+			</correctResponsePatterns>
+			<source>
+				<component>
+					<id>statement_6qbXp7ZxpAV</id>
+					<description lang="und">Non-Answer Box - Round Same Side Corner</description>
+				</component>
+				<component>
+					<id>statement_6nKIOaNGYBS</id>
+					<description lang="und">Risk Answer Box - Round Same Side Corner</description>
+				</component>
+			</source>
+			<target>
+				<component>
+					<id>choice_6jZWvcyjUqI</id>
+					<description lang="und">Having - Having a pet</description>
+				</component>
+				<component>
+					<id>choice_5zMmXnNgUP2</id>
+					<description lang="und">Poor - Poor Sleep</description>
+				</component>
+				<component>
+					<id>choice_6T0GK0vdipX</id>
+					<description lang="und">Family - Family history</description>
+				</component>
+				<component>
+					<id>choice_5qOzE0CYcie</id>
+					<description lang="und">Cardio - Cardiovascular disease</description>
+				</component>
+				<component>
+					<id>choice_6XtNuGpsXDu</id>
+					<description lang="und">Traum - Traumatic brain injury</description>
+				</component>
+				<component>
+					<id>choice_5n63e82Pkl0</id>
+					<description lang="und">Age - Age over 65</description>
+				</component>
+				<component>
+					<id>choice_6gcUJmvBRxT</id>
+					<description lang="und">Drinkin - Drinking Water</description>
+				</component>
+				<component>
+					<id>choice_6F7DEsTFATE</id>
+					<description lang="und">Chronic - Chronic inflammation</description>
+				</component>
+				<component>
+					<id>choice_6Ev11cRJkSp</id>
+					<description lang="und">Being - Being left-handed</description>
+				</component>
+			</target>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6AZmTl40mFh" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Match dementia-related symptoms or conditions to the correct definitions. 
+Drag each term on the left to its matching description on the right.</name>
+			<description lang="und">Match dementia-related symptoms or conditions to the correct definitions. 
+Drag each term on the left to its matching description on the right.</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6AZmTl40mFh/6LNtXbx2PYU" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Match dementia-related symptoms or conditions to the correct definitions. 
+Drag each term on the left to its matching description on the right.</name>
+			<description lang="und">Match dementia-related symptoms or conditions to the correct definitions. 
+Drag each term on the left to its matching description on the right.</description>
+			<interactionType>matching</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>statement_5vUROg5U60k[.]choice_6TZOq1fhvDn</correctResponsePattern>
+				<correctResponsePattern>statement_6gcOAAR14jn[.]choice_6aCp8tZDmz5</correctResponsePattern>
+				<correctResponsePattern>statement_6iXraeEEcyr[.]choice_5xJlLeO25FJ</correctResponsePattern>
+				<correctResponsePattern>statement_5onL1XUu4kA[.]choice_5aW3D59xeBg</correctResponsePattern>
+				<correctResponsePattern>statement_6MHY4coge8P[.]choice_6JStEALQK6F</correctResponsePattern>
+			</correctResponsePatterns>
+			<source>
+				<component>
+					<id>statement_5vUROg5U60k</id>
+					<description lang="und">Struggles with recipes, bills, or daily planning</description>
+				</component>
+				<component>
+					<id>statement_6gcOAAR14jn</id>
+					<description lang="und">Gets lost or confused about where they are</description>
+				</component>
+				<component>
+					<id>statement_6iXraeEEcyr</id>
+					<description lang="und">Caused by protein buildup in the brain</description>
+				</component>
+				<component>
+					<id>statement_5onL1XUu4kA</id>
+					<description lang="und">Caused by fluid buildup in the brain, often treatable</description>
+				</component>
+				<component>
+					<id>statement_6MHY4coge8P</id>
+					<description lang="und">Trouble remembering recently learned information</description>
+				</component>
+			</source>
+			<target>
+				<component>
+					<id>choice_6TZOq1fhvDn</id>
+					<description lang="und">Difficulty with Planning</description>
+				</component>
+				<component>
+					<id>choice_6aCp8tZDmz5</id>
+					<description lang="und">Confusion about Time or Place</description>
+				</component>
+				<component>
+					<id>choice_5xJlLeO25FJ</id>
+					<description lang="und">Lewy Body Dementia</description>
+				</component>
+				<component>
+					<id>choice_5aW3D59xeBg</id>
+					<description lang="und">Normal Pressure Hydrocephalus </description>
+				</component>
+				<component>
+					<id>choice_6JStEALQK6F</id>
+					<description lang="und">Memory Loss</description>
+				</component>
+			</target>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/5vfwUzoXWQb" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">What Remains?</name>
+			<description lang="und">What Remains?</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/61h3qZrAHkV" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Treatment &amp; Support</name>
+			<description lang="und">Treatment &amp; Support</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/6Yiq0vAybop" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Conclusion: Empowered Demenita Care</name>
+			<description lang="und">Conclusion: Empowered Demenita Care</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6ekXD50Aeuv/5aBCXUwcj45" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Final Graded Quiz</name>
+			<description lang="und">Final Graded Quiz</description>
+		</activity>
+	</activities>
+</tincan>

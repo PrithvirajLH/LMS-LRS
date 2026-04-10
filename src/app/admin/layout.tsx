@@ -1,0 +1,57 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const navItems = [
+  { href: "/admin", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" },
+  { href: "/admin/credentials", label: "Credentials", icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" },
+  { href: "/admin/statements", label: "Statements", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
+];
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <aside className="w-64 bg-gray-900 text-white flex flex-col shrink-0">
+        <div className="p-5 border-b border-gray-700">
+          <h1 className="text-lg font-bold tracking-tight">LMSS-LRS</h1>
+          <p className="text-xs text-gray-400 mt-0.5">xAPI Admin Console</p>
+        </div>
+        <nav className="flex-1 p-3 space-y-1">
+          {navItems.map((item) => {
+            const active = item.href === "/admin"
+              ? pathname === "/admin"
+              : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                  active
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                }`}
+              >
+                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                </svg>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="p-4 border-t border-gray-700">
+          <div className="text-xs text-gray-500">xAPI v1.0.3 Conformant</div>
+        </div>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 overflow-auto">
+        {children}
+      </main>
+    </div>
+  );
+}

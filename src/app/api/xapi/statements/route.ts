@@ -1,0 +1,191 @@
+import { NextRequest } from "next/server";
+import { authenticateRequest } from "@/lib/lrs/auth";
+import { validateVersionHeader, xapiResponse, xapiError } from "@/lib/lrs/headers";
+import { storeStatements, getStatements } from "@/lib/lrs/statements";
+import { ValidationError } from "@/lib/lrs/validation";
+import { getEffectiveMethod } from "@/lib/lrs/method-override";
+import { parseMultipartMixed, storeAttachment, validateAttachments } from "@/lib/lrs/attachments";
+import type { XAPIStatement, StatementQueryParams } from "@/lib/lrs/types";
+
+// POST /api/xapi/statements — Store statements (or dispatch method override)
+export async function POST(request: NextRequest) {
+  const effective = getEffectiveMethod(request);
+  if (effective === "PUT") return PUT(request);
+  if (effective === "GET") return GET(request);
+
+  try {
+    const versionError = validateVersionHeader(
+      request.headers.get("X-Experience-API-Version")
+    );
+    if (versionError) return xapiError(versionError, 400);
+
+    const auth = await authenticateRequest(request.headers.get("Authorization"));
+    if (!auth.authenticated) return xapiError(auth.message, auth.status);
+
+    const contentType = request.headers.get("Content-Type") || "";
+    let statements: XAPIStatement[];
+
+    if (contentType.includes("multipart/mixed")) {
+      // Parse multipart/mixed with attachments
+      const boundaryMatch = contentType.match(/boundary=([^\s;]+)/);
+      if (!boundaryMatch) {
+        return xapiError("multipart/mixed requires a boundary parameter", 400);
+      }
+
+      const rawBody = Buffer.from(await request.arrayBuffer());
+      const { statementsJson, attachments } = parseMultipartMixed(rawBody, boundaryMatch[1]);
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(statementsJson);
+      } catch {
+        return xapiError("Invalid JSON in multipart statement part", 400);
+      }
+
+      statements = Array.isArray(parsed) ? parsed : [parsed as XAPIStatement];
+
+      // Validate attachment references
+      const attError = validateAttachments(statements, attachments);
+      if (attError) return xapiError(attError, 400);
+
+      // Store attachments in Blob Storage
+      for (const att of attachments) {
+        await storeAttachment(att);
+      }
+    } else {
+      // Standard JSON body
+      let body: unknown;
+      try {
+        body = await request.json();
+      } catch {
+        return xapiError("Invalid JSON in request body", 400);
+      }
+
+      statements = Array.isArray(body) ? body : [body as XAPIStatement];
+    }
+
+    if (statements.length === 0) {
+      return xapiError("Request body must contain at least one statement", 400);
+    }
+
+    const { ids, conflicts } = await storeStatements(statements, auth.credential);
+
+    if (conflicts.length > 0) {
+      return xapiError(
+        `Conflict: statement ID(s) ${conflicts.join(", ")} already exist with different content`,
+        409
+      );
+    }
+
+    return xapiResponse(ids, 200);
+  } catch (e) {
+    if (e instanceof ValidationError) return xapiError(e.message, 400);
+    console.error("POST /xapi/statements error:", e);
+    return xapiError("Internal server error", 500);
+  }
+}
+
+// PUT /api/xapi/statements?statementId=X — Store a single statement with explicit ID
+export async function PUT(request: NextRequest) {
+  try {
+    const versionError = validateVersionHeader(
+      request.headers.get("X-Experience-API-Version")
+    );
+    if (versionError) return xapiError(versionError, 400);
+
+    const auth = await authenticateRequest(request.headers.get("Authorization"));
+    if (!auth.authenticated) return xapiError(auth.message, auth.status);
+
+    const statementId = request.nextUrl.searchParams.get("statementId");
+    if (!statementId) {
+      return xapiError("statementId query parameter is required for PUT", 400);
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return xapiError("Invalid JSON in request body", 400);
+    }
+
+    const stmt = body as XAPIStatement;
+    if (Array.isArray(body)) {
+      return xapiError("PUT accepts a single statement, not an array", 400);
+    }
+
+    // Set the statement ID from the query parameter
+    stmt.id = statementId;
+
+    const { ids, conflicts } = await storeStatements([stmt], auth.credential);
+
+    if (conflicts.length > 0) {
+      return xapiError(
+        `Conflict: statement ${statementId} already exists with different content`,
+        409
+      );
+    }
+
+    // PUT returns 204 No Content on success
+    return xapiResponse(null, 204);
+  } catch (e) {
+    if (e instanceof ValidationError) return xapiError(e.message, 400);
+    console.error("PUT /xapi/statements error:", e);
+    return xapiError("Internal server error", 500);
+  }
+}
+
+// GET /api/xapi/statements — Query statements
+export async function GET(request: NextRequest) {
+  try {
+    const versionError = validateVersionHeader(
+      request.headers.get("X-Experience-API-Version")
+    );
+    if (versionError) return xapiError(versionError, 400);
+
+    const auth = await authenticateRequest(request.headers.get("Authorization"));
+    if (!auth.authenticated) return xapiError(auth.message, auth.status);
+
+    const url = request.nextUrl;
+    const params: StatementQueryParams = {
+      statementId: url.searchParams.get("statementId") || undefined,
+      voidedStatementId: url.searchParams.get("voidedStatementId") || undefined,
+      agent: url.searchParams.get("agent") || undefined,
+      verb: url.searchParams.get("verb") || undefined,
+      activity: url.searchParams.get("activity") || undefined,
+      registration: url.searchParams.get("registration") || undefined,
+      since: url.searchParams.get("since") || undefined,
+      until: url.searchParams.get("until") || undefined,
+      limit: url.searchParams.get("limit")
+        ? parseInt(url.searchParams.get("limit")!, 10)
+        : undefined,
+      format:
+        (url.searchParams.get("format") as "ids" | "exact" | "canonical") ||
+        undefined,
+      ascending: url.searchParams.get("ascending") === "true",
+      related_activities: url.searchParams.get("related_activities") === "true",
+      related_agents: url.searchParams.get("related_agents") === "true",
+      from: url.searchParams.get("from") || undefined,
+    };
+
+    if (params.statementId && params.voidedStatementId) {
+      return xapiError("Cannot use both statementId and voidedStatementId", 400);
+    }
+
+    const acceptLanguage = request.headers.get("Accept-Language") || undefined;
+    const result = await getStatements(params, acceptLanguage);
+
+    // Single statement by ID returns unwrapped
+    if (params.statementId || params.voidedStatementId) {
+      if (result.statements.length === 0) {
+        return xapiError("Statement not found", 404);
+      }
+      return xapiResponse(result.statements[0], 200);
+    }
+
+    return xapiResponse(result, 200);
+  } catch (e) {
+    if (e instanceof ValidationError) return xapiError(e.message, 400);
+    console.error("GET /xapi/statements error:", e);
+    return xapiError("Internal server error", 500);
+  }
+}

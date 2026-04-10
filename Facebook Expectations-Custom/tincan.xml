@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="utf-8"?>
+<tincan xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://projecttincan.com/tincan.xsd">
+	<activities>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4" type="http://adlnet.gov/expapi/activities/course">
+			<name lang="und">Facebook Expectations-Custom</name>
+			<description lang="und" />
+			<launch lang="und">index_lms.html</launch>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/607ig2xKgON" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Intro Slide</name>
+			<description lang="und">Intro Slide</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5uW6OzVzGYb" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Navigation</name>
+			<description lang="und">Navigation</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5Uu1SHn54oi" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Why Facebook Matters</name>
+			<description lang="und">Why Facebook Matters</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/63w22hCnKje" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Who should have access</name>
+			<description lang="und">Who should have access</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6RRzU5hGi6Y" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Knowledge Check - Access</name>
+			<description lang="und">Knowledge Check - Access</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6RRzU5hGi6Y/5o2E2rWyBPi" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+			<interactionType>matching</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>statement_6Eb7jAHRA1B[.]choice_64qJswxeWH3</correctResponsePattern>
+				<correctResponsePattern>statement_6Eb7jAHRA1B[.]choice_6KcOCyRffTU</correctResponsePattern>
+				<correctResponsePattern>statement_6Eb7jAHRA1B[.]choice_5sRuONFqfG3</correctResponsePattern>
+				<correctResponsePattern>statement_6Eb7jAHRA1B[.]choice_5s9AUMURHEE</correctResponsePattern>
+				<correctResponsePattern>statement_6Eb7jAHRA1B[.]choice_5WuJxc4jjUv</correctResponsePattern>
+				<correctResponsePattern>statement_62MpOP2VeB8[.]choice_5gygnOzqhEY</correctResponsePattern>
+				<correctResponsePattern>statement_62MpOP2VeB8[.]choice_5bOfkm7DX0Y</correctResponsePattern>
+				<correctResponsePattern>statement_62MpOP2VeB8[.]choice_5dOWBacjlcU</correctResponsePattern>
+			</correctResponsePatterns>
+			<source>
+				<component>
+					<id>statement_6Eb7jAHRA1B</id>
+					<description lang="und">Rectangle 15</description>
+				</component>
+				<component>
+					<id>statement_62MpOP2VeB8</id>
+					<description lang="und">Rectangle 14</description>
+				</component>
+			</source>
+			<target>
+				<component>
+					<id>choice_64qJswxeWH3</id>
+					<description lang="und">Rectangle 13 - Receptionist </description>
+				</component>
+				<component>
+					<id>choice_6KcOCyRffTU</id>
+					<description lang="und">Rectangle 12 - Social Services</description>
+				</component>
+				<component>
+					<id>choice_5sRuONFqfG3</id>
+					<description lang="und">Rectangle 11 - Front Desk</description>
+				</component>
+				<component>
+					<id>choice_5s9AUMURHEE</id>
+					<description lang="und">Rectangle 10 - Dietary Manager</description>
+				</component>
+				<component>
+					<id>choice_5WuJxc4jjUv</id>
+					<description lang="und">Rectangle 9 - Activity Director</description>
+				</component>
+				<component>
+					<id>choice_5gygnOzqhEY</id>
+					<description lang="und">Rectangle 7 - Marketing</description>
+				</component>
+				<component>
+					<id>choice_5bOfkm7DX0Y</id>
+					<description lang="und">Rectangle 8 - HR Coordinator</description>
+				</component>
+				<component>
+					<id>choice_5dOWBacjlcU</id>
+					<description lang="und">Rectangle 6 - Administrator</description>
+				</component>
+			</target>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5rfU8oFuG9G" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Expectations</name>
+			<description lang="und">Expectations</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6LF3GfeiKB9" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Drag and Drop- Post</name>
+			<description lang="und">Drag and Drop- Post</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6LF3GfeiKB9/5YCRDF97zEt" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+			<interactionType>matching</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>statement_6ECJlzsXMoi[.]choice_60WuAIGIbZO</correctResponsePattern>
+				<correctResponsePattern>statement_5mAik9ad2ME[.]choice_6Q697mbGME5</correctResponsePattern>
+			</correctResponsePatterns>
+			<source>
+				<component>
+					<id>statement_6ECJlzsXMoi</id>
+					<description lang="und">Answer Yes - Rectangle</description>
+				</component>
+				<component>
+					<id>statement_5mAik9ad2ME</id>
+					<description lang="und">Answer No - Rectangle</description>
+				</component>
+			</source>
+			<target>
+				<component>
+					<id>choice_60WuAIGIbZO</id>
+					<description lang="und">YES - Vector.svg</description>
+				</component>
+				<component>
+					<id>choice_6Q697mbGME5</id>
+					<description lang="und">NO - Vector.svg</description>
+				</component>
+			</target>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6iu5RuOPu2c" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Pick Many</name>
+			<description lang="und">Pick Many</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6iu5RuOPu2c/6mnLgVqNETr" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Pick Many</name>
+			<description lang="und">Pick Many</description>
+			<interactionType>choice</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>choice_6hXAkWjA2my</correctResponsePattern>
+				<correctResponsePattern>choice_6iZuRBL9BW6</correctResponsePattern>
+				<correctResponsePattern>choice_6MKhFFjPh2t</correctResponsePattern>
+			</correctResponsePatterns>
+			<choices>
+				<component>
+					<id>choice_6AYWow9wotP</id>
+					<description lang="und">Wrong 1</description>
+				</component>
+				<component>
+					<id>choice_6hXAkWjA2my</id>
+					<description lang="und">Post1</description>
+				</component>
+				<component>
+					<id>choice_6iZuRBL9BW6</id>
+					<description lang="und">Post 2</description>
+				</component>
+				<component>
+					<id>choice_6MKhFFjPh2t</id>
+					<description lang="und">Post 3</description>
+				</component>
+				<component>
+					<id>choice_6epHZgMUZK8</id>
+					<description lang="und">Wrong 2</description>
+				</component>
+				<component>
+					<id>choice_6qqdhWyc3Nb</id>
+					<description lang="und">Wrong 3 </description>
+				</component>
+			</choices>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5dV2kxpaW7o" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Brand Voice</name>
+			<description lang="und">Brand Voice</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5nyLKvo2N07" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Photo Quality</name>
+			<description lang="und">Photo Quality</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6VaAftF7HtP" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Posting Frequency</name>
+			<description lang="und">Posting Frequency</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/651dzaPqcHF" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Post or DO Not Post - Drag</name>
+			<description lang="und">Post or DO Not Post - Drag</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/651dzaPqcHF/6VRYnhQfDid" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+			<interactionType>matching</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>statement_63wciD5aEQx[.]choice_6Px4x7O1Nqk</correctResponsePattern>
+				<correctResponsePattern>statement_6MC9meyXO5R[.]choice_5e4GDK18JGp</correctResponsePattern>
+			</correctResponsePatterns>
+			<source>
+				<component>
+					<id>statement_63wciD5aEQx</id>
+					<description lang="und">Answer No 1 - Rectangle 1</description>
+				</component>
+				<component>
+					<id>statement_6MC9meyXO5R</id>
+					<description lang="und">Answer Yes 1 - Rectangle 1</description>
+				</component>
+			</source>
+			<target>
+				<component>
+					<id>choice_6Px4x7O1Nqk</id>
+					<description lang="und">NO 1 - Vector.svg</description>
+				</component>
+				<component>
+					<id>choice_5e4GDK18JGp</id>
+					<description lang="und">YES 1 - Vector.svg</description>
+				</component>
+			</target>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/694JGv1wi2e" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">To keep your community engaged and informed, which of the following best reflects our posting expectations?</name>
+			<description lang="und">To keep your community engaged and informed, which of the following best reflects our posting expectations?</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/694JGv1wi2e/69I2Ie1s0Ya" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">To keep your community engaged and informed, which of the following best reflects our posting expectations?</name>
+			<description lang="und">To keep your community engaged and informed, which of the following best reflects our posting expectations?</description>
+			<interactionType>choice</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>choice_62APJz047pG</correctResponsePattern>
+			</correctResponsePatterns>
+			<choices>
+				<component>
+					<id>choice_5iBpxpGGEKX</id>
+					<description lang="und">Post the same type of photo each day to keep things simple.</description>
+				</component>
+				<component>
+					<id>choice_6MTwlApGDYP</id>
+					<description lang="und">Post as often as you want — there’s no minimum requirement.</description>
+				</component>
+				<component>
+					<id>choice_6BnEEyfR5C6</id>
+					<description lang="und">Post only when major events happen — quality matters more than consistency.</description>
+				</component>
+				<component>
+					<id>choice_62APJz047pG</id>
+					<description lang="und">Post at least five times per week, rotating content and planning ahead as a team.</description>
+				</component>
+			</choices>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5radxMC6MQi" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5radxMC6MQi/5jhEpcTUJrt" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Drag and Drop</name>
+			<description lang="und">Drag and Drop</description>
+			<interactionType>matching</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>statement_6aQz2b6zN4h[.]choice_61IT0iGM0Ro</correctResponsePattern>
+				<correctResponsePattern>statement_5eeFwwGImpi[.]choice_6Zw4hiHFfE5</correctResponsePattern>
+				<correctResponsePattern>statement_6LBTGf1KP0Y[.]choice_63zAJbFmFKd</correctResponsePattern>
+				<correctResponsePattern>statement_5qAUK6HnSvY[.]choice_5xGRqRwleYy</correctResponsePattern>
+			</correctResponsePatterns>
+			<source>
+				<component>
+					<id>statement_6aQz2b6zN4h</id>
+					<description lang="und">Box 1 - Rectangle</description>
+				</component>
+				<component>
+					<id>statement_5eeFwwGImpi</id>
+					<description lang="und">Box 2 - Rectangle</description>
+				</component>
+				<component>
+					<id>statement_6LBTGf1KP0Y</id>
+					<description lang="und">Box 3 - Rectangle</description>
+				</component>
+				<component>
+					<id>statement_5qAUK6HnSvY</id>
+					<description lang="und">Box 4 - Rectangle</description>
+				</component>
+			</source>
+			<target>
+				<component>
+					<id>choice_61IT0iGM0Ro</id>
+					<description lang="und">1-1 Answer - Needs proofreading- missing punctuation and capitalization</description>
+				</component>
+				<component>
+					<id>choice_6Zw4hiHFfE5</id>
+					<description lang="und">1-2 Answer - Unprofessional and disrespectful language</description>
+				</component>
+				<component>
+					<id>choice_63zAJbFmFKd</id>
+					<description lang="und">1-3 Asnwer - Violates resident privacy</description>
+				</component>
+				<component>
+					<id>choice_5xGRqRwleYy</id>
+					<description lang="und">1-4 Answer - Professional and inviting tone</description>
+				</component>
+			</target>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6Xh5utqgmuh" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Respect &amp; Compliance</name>
+			<description lang="und">Respect &amp; Compliance</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/5qLQG4BTgAO" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Proofreading</name>
+			<description lang="und">Proofreading</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6ggyCT7Msj4" type="http://adlnet.gov/expapi/activities/module">
+			<name lang="und">Pick Many</name>
+			<description lang="und">Pick Many</description>
+		</activity>
+		<activity id="urn:articulate:storyline:6OF2ndzeYy4/6ggyCT7Msj4/6TvYyL0RyCp" type="http://adlnet.gov/expapi/activities/cmi.interaction">
+			<name lang="und">Pick Many</name>
+			<description lang="und">Pick Many</description>
+			<interactionType>choice</interactionType>
+			<correctResponsePatterns>
+				<correctResponsePattern>choice_5iJoT00TOXS</correctResponsePattern>
+				<correctResponsePattern>choice_5bB0jRlyzKx</correctResponsePattern>
+				<correctResponsePattern>choice_5oVv0ZTlVdC</correctResponsePattern>
+			</correctResponsePatterns>
+			<choices>
+				<component>
+					<id>choice_5iJoT00TOXS</id>
+					<description lang="und">Get signed consent before posting resident photos</description>
+				</component>
+				<component>
+					<id>choice_6dX9G6CQzYm</id>
+					<description lang="und">Share a post that includes a resident’s full name and diagnosis.</description>
+				</component>
+				<component>
+					<id>choice_6Qol4e2FSIZ</id>
+					<description lang="und">Post without permission — it’s fine if it’s a group activity.</description>
+				</component>
+				<component>
+					<id>choice_5bB0jRlyzKx</id>
+					<description lang="und">Choose photos where residents look happy, safe, and engaged.</description>
+				</component>
+				<component>
+					<id>choice_5oVv0ZTlVdC</id>
+					<description lang="und">Keep captions positive and general — avoid personal details.</description>
+				</component>
+				<component>
+					<id>choice_6iM2CEJVzi8</id>
+					<description lang="und">Include cluttered or unsafe areas in the background.</description>
+				</component>
+			</choices>
+		</activity>
+	</activities>
+</tincan>

@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip -l files.zip)",
+      "Bash(unzip -o files.zip)",
+      "Bash(cp \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/lrs-builder.skill\" \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/.claude/skills/lrs-builder.skill\")",
+      "Bash(cp \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/xapi-spec-guide.md\" \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/.claude/skills/references/xapi-spec-guide.md\")",
+      "Bash(cp \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/azure-architecture.md\" \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/.claude/skills/references/azure-architecture.md\")",
+      "Bash(cp \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/healthcare-compliance.md\" \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/.claude/skills/references/healthcare-compliance.md\")",
+      "Bash(rm:*)",
+      "Bash(unzip -p lrs-builder.skill SKILL.md)",
+      "Bash(unzip -l lrs-builder.skill)",
+      "Bash(unzip -p lrs-builder.skill references/xapi-spec-guide.md)",
+      "Bash(unzip -p lrs-builder.skill references/azure-architecture.md)",
+      "Bash(unzip -p lrs-builder.skill references/healthcare-compliance.md)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)",
+      "Read(//c/Users/PHulgur/Downloads/**)",
+      "Bash(npx create-next-app@latest lmss-lrs-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)",
+      "Bash(cp -r \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\lmss-lrs-temp\"/* \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/\")",
+      "Bash(cp \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\lmss-lrs-temp\"/.gitignore \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/\")",
+      "Bash(cp \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\lmss-lrs-temp\"/.eslintrc.json \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/\")",
+      "Bash(cp -r \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\lmss-lrs-temp\"/.git \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\LMSS-LRS/\")",
+      "Bash(rm -rf \"C:\\\\Users\\\\PHulgur\\\\Downloads\\\\lmss-lrs-temp\")",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)",
+      "Bash(python -m json.tool)",
+      "Bash(python -c 'import urllib.parse; print\\(urllib.parse.quote\\('\\\\''{\"account\":{\"homePage\":\"https://lms.storyline.com\",\"name\":\"EMP-001\"}}'\\\\''\\)\\)')",
+      "WebSearch",
+      "WebFetch(domain:ui.aceternity.com)",
+      "WebFetch(domain:magicui.design)",
+      "Bash(npx shadcn@latest init -y)",
+      "Bash(npx shadcn@latest init --defaults)"
+    ]
+  }
+}
