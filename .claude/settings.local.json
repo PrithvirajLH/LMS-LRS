@@ -30,7 +30,12 @@
       "WebFetch(domain:ui.aceternity.com)",
       "WebFetch(domain:magicui.design)",
       "Bash(npx shadcn@latest init -y)",
-      "Bash(npx shadcn@latest init --defaults)"
+      "Bash(npx shadcn@latest init --defaults)",
+      "Bash(npx shadcn@latest add @aceternity/sidebar-demo)",
+      "Bash(npx shadcn@latest add @aceternity/sidebar-demo --overwrite)",
+      "Bash(npx shadcn@latest add @aceternity/card-hover-effect-demo --overwrite)",
+      "Bash(npx shadcn@latest add @aceternity/animated-tooltip-demo --overwrite)",
+      "Bash(npx shadcn@latest add @aceternity/background-gradient-demo --overwrite)"
     ]
   }
 }
