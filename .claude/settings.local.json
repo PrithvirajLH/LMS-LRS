@@ -41,7 +41,9 @@
       "mcp__plugin_playwright_playwright__browser_snapshot",
       "mcp__plugin_playwright_playwright__browser_hover",
       "mcp__plugin_playwright_playwright__browser_evaluate",
-      "mcp__plugin_playwright_playwright__browser_run_code"
+      "mcp__plugin_playwright_playwright__browser_run_code",
+      "Bash(npx shadcn@latest add @aceternity/moving-border-demo --overwrite)",
+      "Bash(npx shadcn@latest add @aceternity/bento-grid-demo --overwrite)"
     ]
   }
 }

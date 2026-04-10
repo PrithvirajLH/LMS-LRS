@@ -6,9 +6,9 @@ import { WelcomeStripV2 } from "@/components/dashboard/welcome-strip-v2";
 import { ProgressGauge } from "@/components/dashboard/progress-gauge";
 import { StatCardBento } from "@/components/dashboard/stat-card-bento";
 import { CourseTimelineCard } from "@/components/dashboard/course-timeline-card";
+import { BackgroundGradient } from "@/components/ui/background-gradient";
 import type { CourseStatus } from "@/components/dashboard/course-timeline-card";
 
-// ── Mock data (will be replaced with LRS API calls) ──
 interface Course {
   id: string;
   title: string;
@@ -105,7 +105,7 @@ const mockCourses: Course[] = [
   },
 ];
 
-export default function LearnDashboard() {
+export default function LearnDashboardV2() {
   const [showCompleted, setShowCompleted] = useState(false);
 
   const activeCourses = mockCourses.filter((c) => c.status !== "completed");
@@ -121,9 +121,8 @@ export default function LearnDashboard() {
   const displayedCourses = showCompleted ? mockCourses : activeCourses;
 
   return (
-    // <div className="px-8 py-8"> 
     <div className="p-6 md:p-10 max-w-[1200px] mx-auto">
-      {/* Zone 1: Welcome Strip */}
+      {/* Zone 1: Welcome Strip with animated gradient + moving border button */}
       <WelcomeStripV2
         name="Jane"
         lastCourse="Anti-Harassment Training"
@@ -132,11 +131,10 @@ export default function LearnDashboard() {
         deadlineCourse="What is Dementia: Etiology and Treatment"
       />
 
-      {/* Main layout: timeline left, gauge right */}
       <div className="flex gap-10">
-        {/* Left column: stats + timeline */}
+        {/* Left column */}
         <div className="flex-1 min-w-0">
-          {/* Zone 2A: Stat cards */}
+          {/* Zone 2A: Bento stat cards with hover translate */}
           <motion.div
             className="grid grid-cols-4 gap-3 mb-8"
             initial={{ opacity: 0, y: 8 }}
@@ -149,7 +147,7 @@ export default function LearnDashboard() {
             <StatCardBento label="Overdue" value={overdueCount} color="amber" description={overdueCount > 0 ? "needs attention" : "all on track"} />
           </motion.div>
 
-          {/* Zone 2B: Learning Path header */}
+          {/* Learning Path header */}
           <div className="flex items-center justify-between mb-5">
             <h2
               style={{
@@ -162,7 +160,6 @@ export default function LearnDashboard() {
               My Learning Path
             </h2>
 
-            {/* Show completed toggle */}
             <button
               onClick={() => setShowCompleted(!showCompleted)}
               className="flex items-center gap-2"
@@ -192,7 +189,7 @@ export default function LearnDashboard() {
             </button>
           </div>
 
-          {/* Zone 2B: Course timeline */}
+          {/* Course timeline */}
           <div>
             {displayedCourses.map((course, idx) => (
               <CourseTimelineCard
@@ -214,24 +211,26 @@ export default function LearnDashboard() {
           </div>
         </div>
 
-        {/* Right column: progress gauge (sticky) */}
-        <div className="w-[240px] shrink-0">
+        {/* Right column: progress gauge with BackgroundGradient */}
+        <div className="w-[260px] shrink-0">
           <div className="sticky top-10">
             <motion.div
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.3, ease: [0.2, 0, 0, 1] }}
-              className="rounded-2xl px-6 py-8"
-              style={{
-                backgroundColor: "var(--bg-raised)",
-                border: "1px solid var(--border-default)",
-              }}
             >
-              <ProgressGauge
-                percentage={percentage}
-                completed={completedCount}
-                total={totalCourses}
-              />
+              <BackgroundGradient
+                className="rounded-2xl px-6 py-8"
+                containerClassName="rounded-2xl"
+              >
+                <div style={{ backgroundColor: "var(--bg-raised)", borderRadius: "1rem", padding: "2rem 1.5rem" }}>
+                  <ProgressGauge
+                    percentage={percentage}
+                    completed={completedCount}
+                    total={totalCourses}
+                  />
+                </div>
+              </BackgroundGradient>
             </motion.div>
           </div>
         </div>
