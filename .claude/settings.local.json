@@ -35,7 +35,13 @@
       "Bash(npx shadcn@latest add @aceternity/sidebar-demo --overwrite)",
       "Bash(npx shadcn@latest add @aceternity/card-hover-effect-demo --overwrite)",
       "Bash(npx shadcn@latest add @aceternity/animated-tooltip-demo --overwrite)",
-      "Bash(npx shadcn@latest add @aceternity/background-gradient-demo --overwrite)"
+      "Bash(npx shadcn@latest add @aceternity/background-gradient-demo --overwrite)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_hover",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "mcp__plugin_playwright_playwright__browser_run_code"
     ]
   }
 }
