@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "motion/react";
+import { ColorLabel, ColorLabelProvider } from "@/components/ui/color-label";
 
 /**
  * COLOR MAP — Colleague's palette
@@ -53,24 +54,6 @@ const statusStyles = {
   due_soon:    { label: "DUE SOON",    bg: "#FAF0EC", text: C.danger, dot: C.danger },
 };
 
-function ColorLabel({ hex, role, position = "top-right" }: { hex: string; role: string; position?: "top-right" | "top-left" | "bottom-right" | "bottom-left" }) {
-  const posClass = {
-    "top-right": "top-1 right-1",
-    "top-left": "top-1 left-1",
-    "bottom-right": "bottom-1 right-1",
-    "bottom-left": "bottom-1 left-1",
-  }[position];
-
-  return (
-    <div className={`absolute ${posClass} z-50 flex items-center gap-1 rounded px-1.5 py-0.5`} style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
-      <div className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: hex, border: "1px solid rgba(255,255,255,0.3)" }} />
-      <span style={{ fontFamily: "monospace", fontSize: "9px", color: "#fff", whiteSpace: "nowrap" }}>
-        {hex} · {role}
-      </span>
-    </div>
-  );
-}
-
 export default function V3Dashboard() {
   const [showCompleted, setShowCompleted] = useState(false);
   const active = mockCourses.filter(c => c.status !== "completed");
@@ -78,8 +61,12 @@ export default function V3Dashboard() {
   const displayed = showCompleted ? mockCourses : active;
 
   return (
+    <ColorLabelProvider>
     <div style={{ backgroundColor: C.pageBg, minHeight: "100%" }} className="p-6 md:p-10 max-w-[1200px] mx-auto relative">
-      <ColorLabel hex={C.pageBg} role="PAGE BG" position="top-left" />
+      <ColorLabel hex={C.pageBg} role="PAGE BG (outer)" position="top-left" />
+      <div className="absolute top-8 left-2 z-50">
+        <ColorLabel hex={C.raised} role="RAISED (content area)" position="top-left" />
+      </div>
 
       {/* Color legend */}
       <div className="mb-6 flex flex-wrap gap-3">
@@ -145,6 +132,10 @@ export default function V3Dashboard() {
           </div>
         </div>
       </motion.div>
+
+      {/* Main layout: timeline left, gauge right */}
+      <div className="flex gap-10">
+      <div className="flex-1 min-w-0">
 
       {/* Stat cards — uses SURFACE bg */}
       <div className="grid grid-cols-4 gap-3 mb-8">
@@ -242,6 +233,48 @@ export default function V3Dashboard() {
           );
         })}
       </div>
+      </div>{/* end left column */}
+
+      {/* Right column: progress gauge (sticky) */}
+      <div className="w-[240px] shrink-0">
+        <div className="sticky top-10">
+          <motion.div
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="rounded-2xl px-6 py-8 relative"
+            style={{ backgroundColor: C.raised, border: `1px solid ${C.border}` }}
+          >
+            <ColorLabel hex={C.raised} role="RAISED (gauge)" position="top-right" />
+            {/* Gauge SVG */}
+            <div className="flex flex-col items-center">
+              <svg width="200" height="110" viewBox="0 0 200 110">
+                <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke={C.border} strokeWidth="16" strokeLinecap="round" />
+                <motion.path
+                  d="M 20 100 A 80 80 0 0 1 180 100"
+                  fill="none"
+                  stroke={C.primary}
+                  strokeWidth="16"
+                  strokeLinecap="round"
+                  strokeDasharray={Math.PI * 80}
+                  initial={{ strokeDashoffset: Math.PI * 80 }}
+                  animate={{ strokeDashoffset: Math.PI * 80 - (33 / 100) * Math.PI * 80 }}
+                  transition={{ duration: 1.2, ease: [0.2, 0, 0, 1], delay: 0.3 }}
+                />
+              </svg>
+              <div className="mt-[-8px] text-center">
+                <span style={{ fontFamily: "var(--font-body)", fontSize: "var(--text-stat-l)", fontWeight: 700, color: C.primary }}>33%</span>
+                <div style={{ fontFamily: "var(--font-body)", fontSize: "14px", color: C.body, marginTop: "2px" }}>of goal</div>
+              </div>
+              <p className="mt-3 text-center max-w-[200px]" style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: C.muted, lineHeight: 1.65 }}>
+                You&apos;ve completed <strong style={{ color: C.text, fontWeight: 700 }}>2</strong> of your <strong style={{ color: C.text, fontWeight: 700 }}>6</strong> courses. Only <strong style={{ color: C.primary, fontWeight: 700 }}>4</strong> to go!
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+      </div>{/* end flex row */}
     </div>
+    </ColorLabelProvider>
   );
 }
