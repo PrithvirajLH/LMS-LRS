@@ -207,10 +207,15 @@ function LoginForm() {
             </button>
           </form>
 
-          <p className="mt-6 text-center" style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-muted)" }}>
-            Don&apos;t have an account?{" "}
-            <a href="/register" style={{ color: "var(--text-link, var(--teal-400))", fontWeight: 600 }}>Register</a>
-          </p>
+          <div className="mt-6 text-center space-y-2">
+            <p style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-muted)" }}>
+              <a href="/forgot-password" style={{ color: "var(--text-link, var(--teal-400))", fontWeight: 600 }}>Forgot your password?</a>
+            </p>
+            <p style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-muted)" }}>
+              Don&apos;t have an account?{" "}
+              <a href="/register" style={{ color: "var(--text-link, var(--teal-400))", fontWeight: 600 }}>Register</a>
+            </p>
+          </div>
         </motion.div>
       </div>
     </div>

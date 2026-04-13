@@ -193,3 +193,115 @@ export async function registerUser(data: {
 
   return entity;
 }
+
+// ── Password Reset Token ──
+export interface ResetTokenEntity {
+  partitionKey: string; // "reset"
+  rowKey: string;       // token
+  userId: string;
+  email: string;
+  expiresAt: string;
+}
+
+export async function createResetToken(email: string): Promise<{ token: string; userId: string } | { error: string }> {
+  const userTable = await getTableClient("users");
+  let user: AuthUser | null = null;
+
+  const iter = userTable.listEntities<AuthUser>();
+  for await (const entity of iter) {
+    if (entity.email?.toLowerCase() === email.toLowerCase()) {
+      user = entity;
+      break;
+    }
+  }
+
+  if (!user) return { error: "No account found with this email" };
+
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+
+  const sessionTable = await getTableClient("sessions");
+  await sessionTable.createEntity({
+    partitionKey: "reset",
+    rowKey: token,
+    userId: user.rowKey,
+    email: user.email,
+    expiresAt,
+  } as ResetTokenEntity);
+
+  return { token, userId: user.rowKey };
+}
+
+export async function resetPasswordWithToken(token: string, newPassword: string): Promise<{ success: boolean } | { error: string }> {
+  const sessionTable = await getTableClient("sessions");
+
+  let resetEntity: ResetTokenEntity;
+  try {
+    resetEntity = await sessionTable.getEntity<ResetTokenEntity>("reset", token);
+  } catch {
+    return { error: "Invalid or expired reset link" };
+  }
+
+  if (new Date(resetEntity.expiresAt) < new Date()) {
+    await sessionTable.deleteEntity("reset", token);
+    return { error: "Reset link has expired" };
+  }
+
+  // Find user and update password
+  const userTable = await getTableClient("users");
+  const passwordHash = await hash(newPassword, 10);
+
+  // Find user by email across all partitions
+  const iter = userTable.listEntities<AuthUser>();
+  for await (const entity of iter) {
+    if (entity.email?.toLowerCase() === resetEntity.email.toLowerCase()) {
+      await userTable.updateEntity(
+        { partitionKey: entity.partitionKey, rowKey: entity.rowKey, passwordHash, updatedAt: new Date().toISOString() },
+        "Merge"
+      );
+      break;
+    }
+  }
+
+  // Delete the reset token
+  await sessionTable.deleteEntity("reset", token);
+
+  return { success: true };
+}
+
+// ── Admin: Reset password for a user ──
+export async function adminResetPassword(userId: string, newPassword: string): Promise<{ success: boolean } | { error: string }> {
+  const userTable = await getTableClient("users");
+  const passwordHash = await hash(newPassword, 10);
+
+  const iter = userTable.listEntities<AuthUser>();
+  for await (const entity of iter) {
+    if (entity.rowKey === userId) {
+      await userTable.updateEntity(
+        { partitionKey: entity.partitionKey, rowKey: entity.rowKey, passwordHash, updatedAt: new Date().toISOString() },
+        "Merge"
+      );
+      return { success: true };
+    }
+  }
+
+  return { error: "User not found" };
+}
+
+// ── Admin: Update user role/status ──
+export async function adminUpdateUser(userId: string, updates: { role?: string; status?: string }): Promise<{ success: boolean } | { error: string }> {
+  const userTable = await getTableClient("users");
+
+  const iter = userTable.listEntities<AuthUser>();
+  for await (const entity of iter) {
+    if (entity.rowKey === userId) {
+      await userTable.updateEntity(
+        { partitionKey: entity.partitionKey, rowKey: entity.rowKey, ...updates, updatedAt: new Date().toISOString() },
+        "Merge"
+      );
+      return { success: true };
+    }
+  }
+
+  return { error: "User not found" };
+}

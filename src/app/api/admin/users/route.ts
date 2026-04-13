@@ -1,6 +1,7 @@
 import { requireAuth, isAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, listUsers } from "@/lib/users/user-storage";
+import { adminUpdateUser } from "@/lib/auth/session";
 
 // POST /api/admin/users — Create a new user
 export async function POST(request: NextRequest) {
@@ -41,5 +42,28 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error("GET /api/admin/users error:", e);
     return NextResponse.json({ error: true, message: "Failed to list users" }, { status: 500 });
+  }
+}
+
+// PATCH /api/admin/users — Update user role/status
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await requireAuth(request, ["admin", "instructor"]);
+    if (isAuthError(auth)) return auth;
+
+    const { userId, role, status } = await request.json();
+    if (!userId) return NextResponse.json({ error: true, message: "userId required" }, { status: 400 });
+
+    const updates: { role?: string; status?: string } = {};
+    if (role) updates.role = role;
+    if (status) updates.status = status;
+
+    const result = await adminUpdateUser(userId, updates);
+    if ("error" in result) return NextResponse.json({ error: true, message: result.error }, { status: 404 });
+
+    return NextResponse.json({ userId, ...updates });
+  } catch (e) {
+    console.error("PATCH /api/admin/users error:", e);
+    return NextResponse.json({ error: true, message: "Failed to update user" }, { status: 500 });
   }
 }

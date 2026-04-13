@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion } from "motion/react";
-import { IconDownload, IconFilter, IconChevronDown, IconCalendar, IconRefresh } from "@tabler/icons-react";
+import { IconDownload, IconFilter, IconChevronDown, IconCalendar, IconLoader2 } from "@tabler/icons-react";
 
 interface LearnerReport {
   userName: string;
@@ -49,20 +49,35 @@ export default function InstructorReportsPage() {
   const [sortBy, setSortBy] = useState<string>("userName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Try to load live data from API
+  // Dynamic meta bar state
+  const today = new Date();
+  const oneYearAgo = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  const [dateFrom, setDateFrom] = useState(oneYearAgo.toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(today.toISOString().slice(0, 10));
+  const [summary, setSummary] = useState<{ totalLearners: number; totalCompliant: number; totalComplete: number; avgCompletePercent: number; avgCompliantPercent: number }>({ totalLearners: 0, totalCompliant: 0, totalComplete: 0, avgCompletePercent: 0, avgCompliantPercent: 0 });
+  const [courseCount, setCourseCount] = useState(0);
+  const [facilities, setFacilities] = useState<string[]>([]);
+
   const loadLiveData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/reports");
-      const data = await res.json();
-      if (data.rows) {
-        setReportData(data.rows);
-      }
+      const params = new URLSearchParams({ dateFrom, dateTo });
+      const [reportRes, coursesRes] = await Promise.all([
+        fetch(`/api/admin/reports?${params}`),
+        fetch("/api/admin/courses"),
+      ]);
+      const reportJson = await reportRes.json();
+      const coursesJson = await coursesRes.json();
+
+      if (reportJson.rows) setReportData(reportJson.rows);
+      if (reportJson.summary) setSummary(reportJson.summary);
+      if (reportJson.facilities) setFacilities(reportJson.facilities);
+      setCourseCount(coursesJson.courses?.length || 0);
     } catch {
       // No data available
     }
     setLoading(false);
-  }, []);
+  }, [dateFrom, dateTo]);
 
   useEffect(() => { loadLiveData(); }, [loadLiveData]);
 
@@ -94,7 +109,7 @@ export default function InstructorReportsPage() {
     });
 
     return result;
-  }, [search, deptFilter, complianceFilter, sortBy, sortDir]);
+  }, [reportData, search, deptFilter, complianceFilter, sortBy, sortDir]);
 
   function handleSort(col: string) {
     if (sortBy === col) {
@@ -117,8 +132,6 @@ export default function InstructorReportsPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
-
-  const compliantCount = filtered.filter((r) => r.compliantPercent === 100).length;
 
   return (
     <div className="p-6 md:p-10">
@@ -147,21 +160,50 @@ export default function InstructorReportsPage() {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <span style={{ fontFamily: "var(--font-label)", fontSize: "9px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)" }}>Completion Date Range</span>
-            <div className="flex items-center gap-1.5 mt-1">
+            <div className="flex items-center gap-2 mt-1.5">
               <IconCalendar size={14} style={{ color: "var(--text-muted)" }} />
-              <span style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-primary)" }}>2025-04-13 — 2026-04-13</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="rounded-md px-2 py-1 outline-none"
+                style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-primary)", backgroundColor: "var(--bg-raised)", border: "1px solid var(--border-default)", width: "130px" }}
+              />
+              <span style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="rounded-md px-2 py-1 outline-none"
+                style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-primary)", backgroundColor: "var(--bg-raised)", border: "1px solid var(--border-default)", width: "130px" }}
+              />
             </div>
           </div>
           <div>
-            <span style={{ fontFamily: "var(--font-label)", fontSize: "9px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)" }}>Filters</span>
-            <div className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-primary)" }}>
-              User Status: Active · {filtered.length} learners · {compliantCount} compliant ({Math.round(compliantCount / filtered.length * 100)}%)
+            <span style={{ fontFamily: "var(--font-label)", fontSize: "9px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)" }}>Summary</span>
+            <div className="mt-1.5" style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-primary)" }}>
+              {loading ? (
+                <span className="flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
+                  <IconLoader2 size={14} className="animate-spin" /> Loading...
+                </span>
+              ) : (
+                <>
+                  {summary.totalLearners} learner{summary.totalLearners !== 1 ? "s" : ""} · {summary.totalCompliant} compliant ({summary.totalLearners > 0 ? Math.round((summary.totalCompliant / summary.totalLearners) * 100) : 0}%)
+                  {facilities.length > 0 && (
+                    <span style={{ color: "var(--text-muted)", fontSize: "12px" }}> · {facilities.length} facilit{facilities.length !== 1 ? "ies" : "y"}</span>
+                  )}
+                </>
+              )}
             </div>
           </div>
           <div>
             <span style={{ fontFamily: "var(--font-label)", fontSize: "9px", letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--text-muted)" }}>Courses</span>
-            <div className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
-              12 SecureCare courses included
+            <div className="mt-1.5" style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-primary)" }}>
+              {loading ? (
+                <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>—</span>
+              ) : (
+                <>{courseCount} course{courseCount !== 1 ? "s" : ""} included</>
+              )}
             </div>
           </div>
         </div>

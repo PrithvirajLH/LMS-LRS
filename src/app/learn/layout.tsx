@@ -11,6 +11,8 @@ import {
   IconReportAnalytics,
   IconUser,
   IconArrowLeft,
+  IconSettings,
+  IconShieldCheck,
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -26,6 +28,7 @@ export default function LearnLayout({
   const [open, setOpen] = useState(false);
   const [userName, setUserName] = useState("User");
   const [userInitials, setUserInitials] = useState("U");
+  const [userRole, setUserRole] = useState<string>("learner");
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -35,6 +38,7 @@ export default function LearnLayout({
           setUserName(data.user.name);
           setUserInitials(data.user.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase());
         }
+        if (data.user?.role) setUserRole(data.user.role);
       })
       .catch(() => {});
   }, []);
@@ -68,6 +72,14 @@ export default function LearnLayout({
   ];
 
   const bottomLinks = [
+    // Instructor portal — visible to instructor and admin
+    ...(userRole === "instructor" || userRole === "admin"
+      ? [{ label: "Instructor", href: "/instructor", icon: <IconSettings className={ICON_CLASS} style={ICON_STYLE} stroke={1.5} /> }]
+      : []),
+    // Admin portal — visible to admin only
+    ...(userRole === "admin"
+      ? [{ label: "Admin", href: "/admin", icon: <IconShieldCheck className={ICON_CLASS} style={ICON_STYLE} stroke={1.5} /> }]
+      : []),
     {
       label: "My Profile",
       href: "/learn/profile",
