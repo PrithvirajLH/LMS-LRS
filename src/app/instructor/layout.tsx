@@ -16,7 +16,7 @@ import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
 const ICON_CLASS = "h-6 w-6 shrink-0";
-const ICON_STYLE = { color: "var(--stone-600)" };
+const ICON_STYLE = { color: "var(--deep-900, #0A1628)" };
 
 export default function InstructorLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);

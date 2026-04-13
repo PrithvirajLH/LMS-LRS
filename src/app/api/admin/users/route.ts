@@ -1,9 +1,11 @@
+import { requireAuth, isAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, listUsers } from "@/lib/users/user-storage";
 
 // POST /api/admin/users — Create a new user
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const body = await request.json();
     const { name, email, employeeId, facility, department, position, status } = body;
 
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
 // GET /api/admin/users — List all users
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const facility = request.nextUrl.searchParams.get("facility") || undefined;
     const users = await listUsers(facility);
     return NextResponse.json({ users });

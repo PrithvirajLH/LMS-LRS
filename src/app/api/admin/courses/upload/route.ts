@@ -1,9 +1,11 @@
+import { requireAuth, isAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { uploadCourseZip } from "@/lib/courses/course-storage";
 
 // POST /api/admin/courses/upload — Upload a Storyline ZIP
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const formData = await request.formData();
     const file = formData.get("file") as File;
 

@@ -1,9 +1,11 @@
 "use client";
 
 import { motion } from "motion/react";
+import Link from "next/link";
 import type { CourseStatus } from "@/components/dashboard/course-timeline-card";
 
 interface CourseCardProps {
+  courseId?: string;
   title: string;
   category: string;
   duration: string;
@@ -51,6 +53,7 @@ const statusConfig: Record<CourseStatus, { label: string; bg: string; text: stri
 
 export function CourseCard({
   title,
+  courseId,
   category,
   duration,
   credits,
@@ -220,8 +223,9 @@ export function CourseCard({
             )}
           </div>
 
-          <button
-            className="rounded-lg px-4 py-2 transition-colors duration-200"
+          <Link
+            href={courseId ? `/play?courseId=${courseId}` : "#"}
+            className="rounded-lg px-4 py-2 transition-colors duration-200 inline-block"
             style={{
               fontFamily: "var(--font-label)",
               fontSize: "11px",
@@ -232,7 +236,7 @@ export function CourseCard({
             }}
           >
             {actionLabel}
-          </button>
+          </Link>
         </div>
       </div>
     </motion.div>

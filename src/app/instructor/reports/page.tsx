@@ -25,21 +25,6 @@ interface LearnerReport {
   tags: string[];
 }
 
-const mockReport: LearnerReport[] = [
-  { userName: "Amanda Jordan", email: "amandajordn@gmail.com", employeeId: "083344", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 126, durationFinal: 108, coursesAssigned: 12, coursesCompleted: 12, completedOnTime: 12, assignedDate: "2025-12-01", dueDate: "2025-12-15", completedDate: "2025-12-04", completePercent: 100, compliantPercent: 100, userStatus: "active", registrationStep: "complete", tags: ["department-therapy", "position-speech-and-language-therapist"] },
-  { userName: "Ana Armendariz", email: "anamarmendariz@icloud.com", employeeId: "102646", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 68086, durationFinal: 121, coursesAssigned: 11, coursesCompleted: 11, completedOnTime: 0, assignedDate: "2025-04-25", dueDate: "2025-09-17", completedDate: "2025-12-29", completePercent: 100, compliantPercent: 0, userStatus: "active", registrationStep: "complete", tags: ["department-housekeeping", "position-housekeeping-staff"] },
-  { userName: "Abiodun Fadahunsi", email: "fadahunssiabiodun@gmail.com", employeeId: "074812", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 112, actualTimeSpent: 42938, durationFinal: 107, coursesAssigned: 11, coursesCompleted: 11, completedOnTime: 0, assignedDate: "2025-09-01", dueDate: "2025-09-16", completedDate: "2025-10-18", completePercent: 100, compliantPercent: 0, userStatus: "active", registrationStep: "complete", tags: ["department-nursing-direct-care", "position-charge-nurse-rn"] },
-  { userName: "Adeola Ojo", email: "deolaojo2001@yahoo.com", employeeId: "091523", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 1477, durationFinal: 119, coursesAssigned: 12, coursesCompleted: 12, completedOnTime: 12, assignedDate: "2026-04-07", dueDate: "2026-04-21", completedDate: "2026-04-08", completePercent: 100, compliantPercent: 100, userStatus: "active", registrationStep: "complete", tags: ["department-nursing-direct-care", "position-charge-nurse-rn"] },
-  { userName: "Adrian Lewis", email: "denise.39.lewis@gmail.com", employeeId: "105686", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 1995, durationFinal: 121, coursesAssigned: 11, coursesCompleted: 11, completedOnTime: 0, assignedDate: "2025-07-18", dueDate: "2025-09-17", completedDate: "2025-12-31", completePercent: 100, compliantPercent: 0, userStatus: "active", registrationStep: "complete", tags: ["department-laundry", "position-laundry-staff"] },
-  { userName: "Adrianna Gonzales", email: "adrianna51893@gmail.com", employeeId: "096625", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 324, durationFinal: 116, coursesAssigned: 12, coursesCompleted: 12, completedOnTime: 0, assignedDate: "2025-04-16", dueDate: "2025-09-16", completedDate: "2025-10-02", completePercent: 100, compliantPercent: 0, userStatus: "active", registrationStep: "complete", tags: ["department-housekeeping", "position-housekeeping-staff"] },
-  { userName: "Alexus Gilbert", email: "ascalia96@yahoo.com", employeeId: "111801", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 1199, durationFinal: 100, coursesAssigned: 12, coursesCompleted: 12, completedOnTime: 12, assignedDate: "2026-01-28", dueDate: "2026-02-11", completedDate: "2026-02-10", completePercent: 100, compliantPercent: 100, userStatus: "active", registrationStep: "complete", tags: ["department-therapy", "position-speech-and-language-therapist"] },
-  { userName: "Allencia Potter-Spence", email: "lenlen92@aol.com", employeeId: "058666", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 1696, durationFinal: 115, coursesAssigned: 12, coursesCompleted: 12, completedOnTime: 0, assignedDate: "2025-11-23", dueDate: "2025-12-07", completedDate: "2025-12-29", completePercent: 100, compliantPercent: 0, userStatus: "active", registrationStep: "complete", tags: ["department-nursing-direct-care", "position-charge-nurse-rn"] },
-  { userName: "Ana Lopez", email: "analopez1123@icloud.com", employeeId: "112848", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 121, actualTimeSpent: 204, durationFinal: 61, coursesAssigned: 12, coursesCompleted: 12, completedOnTime: 12, assignedDate: "2026-03-05", dueDate: "2026-03-19", completedDate: "2026-03-05", completePercent: 100, compliantPercent: 100, userStatus: "active", registrationStep: "complete", tags: ["department-dietary", "position-dietary-cooks"] },
-  { userName: "Angelica Iniguez", email: "anguelicainiguez72@gmail.com", employeeId: "074062", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 112, actualTimeSpent: 225, durationFinal: 110, coursesAssigned: 11, coursesCompleted: 11, completedOnTime: 0, assignedDate: "2025-09-01", dueDate: "2025-09-16", completedDate: "2025-12-23", completePercent: 100, compliantPercent: 0, userStatus: "active", registrationStep: "complete", tags: ["department-dietary", "position-dietary-staff"] },
-  { userName: "Angelique Harris", email: "angeliqueharris05@gmail.com", employeeId: "093664", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 112, actualTimeSpent: 398, durationFinal: 108, coursesAssigned: 11, coursesCompleted: 11, completedOnTime: 0, assignedDate: "2025-09-01", dueDate: "2025-09-16", completedDate: "2025-11-11", completePercent: 100, compliantPercent: 0, userStatus: "active", registrationStep: "complete", tags: ["department-nursing-direct-care", "position-treatment-nurse-lvn"] },
-  { userName: "Anita Walton", email: "anitawalton1509@gmail.com", employeeId: "091529", provider: "Arlington Heights Health And Rehabilitation Center", estDuration: 112, actualTimeSpent: 1411, durationFinal: 80, coursesAssigned: 11, coursesCompleted: 11, completedOnTime: 11, assignedDate: "2025-09-01", dueDate: "2025-09-16", completedDate: "2025-09-12", completePercent: 100, compliantPercent: 100, userStatus: "active", registrationStep: "complete", tags: ["department-nursing-direct-care", "position-certified-nurse-aides-cna"] },
-];
-
 function getDepartments(data: LearnerReport[]) {
   return [...new Set(data.flatMap((r) => r.tags.filter((t) => t.startsWith("department-")).map((t) => t.replace("department-", "").replace(/-/g, " "))))];
 }
@@ -55,9 +40,8 @@ function formatMins(mins: number) {
 }
 
 export default function InstructorReportsPage() {
-  const [reportData, setReportData] = useState<LearnerReport[]>(mockReport);
-  const [loading, setLoading] = useState(false);
-  const [dataSource, setDataSource] = useState<"mock" | "live">("mock");
+  const [reportData, setReportData] = useState<LearnerReport[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [complianceFilter, setComplianceFilter] = useState<"all" | "compliant" | "non-compliant">("all");
@@ -71,12 +55,11 @@ export default function InstructorReportsPage() {
     try {
       const res = await fetch("/api/admin/reports");
       const data = await res.json();
-      if (data.rows && data.rows.length > 0) {
+      if (data.rows) {
         setReportData(data.rows);
-        setDataSource("live");
       }
     } catch {
-      // Fall back to mock data
+      // No data available
     }
     setLoading(false);
   }, []);
@@ -302,7 +285,7 @@ export default function InstructorReportsPage() {
       </div>
 
       <div className="mt-4 text-right" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
-        Showing {filtered.length} of {reportData.length} learners{dataSource === "live" && " (live data)"}{loading && " (loading...)"}
+        Showing {filtered.length} of {reportData.length} learners
       </div>
     </div>
   );

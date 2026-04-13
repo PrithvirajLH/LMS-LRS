@@ -1,3 +1,4 @@
+import { requireAuth, isAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { hash } from "bcryptjs";
@@ -7,6 +8,7 @@ import type { CredentialEntity } from "@/lib/lrs/types";
 // POST /api/admin/credentials — Create a new API credential
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const body = await request.json();
     const displayName: string = body.displayName || "Unnamed Credential";
     const scopes: string = body.scopes || "statements/write,statements/read";
@@ -67,6 +69,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/admin/credentials — Toggle active status
 export async function PATCH(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const body = await request.json();
     const { apiKey, isActive } = body;
     if (!apiKey) {
@@ -90,8 +93,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 // GET /api/admin/credentials — List all credentials (without secrets)
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const table = await getTableClient("credentials");
     const credentials: Array<{
       apiKey: string;

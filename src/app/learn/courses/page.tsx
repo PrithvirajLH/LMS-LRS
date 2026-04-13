@@ -44,8 +44,19 @@ export default function CourseCatalog() {
   }, [courses, activeCategory, search]);
 
   const handleEnroll = async (id: string) => {
-    // TODO: Call enrollment API when auth is wired
-    setCourses((prev) => prev.map((c) => c.id === id ? { ...c, enrollStatus: "enrolled" as EnrollStatus } : c));
+    try {
+      const res = await fetch("/api/learner/enroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseId: id }),
+      });
+
+      if (res.ok) {
+        setCourses((prev) => prev.map((c) => c.id === id ? { ...c, enrollStatus: "enrolled" as EnrollStatus } : c));
+      }
+    } catch {
+      // Silent fail
+    }
   };
 
   if (loading) {

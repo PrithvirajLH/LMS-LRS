@@ -17,7 +17,7 @@ interface DashboardData {
     color: string; launchUrl: string;
   }>;
   stats: { totalCourses: number; completed: number; inProgress: number; overdue: number; totalCredits: number; earnedCredits: number };
-  lastActivity: { courseTitle: string; activityId: string; verb: string } | null;
+  lastActivity: { courseTitle: string; moduleName?: string; courseId?: string; activityId: string; verb: string } | null;
   nextDeadline: { courseTitle: string; daysRemaining: number } | null;
 }
 
@@ -81,9 +81,10 @@ export default function LearnDashboard() {
       <WelcomeStripV2
         name={user.name.split(" ")[0]}
         lastCourse={lastActivity?.courseTitle}
-        lastModule={lastActivity?.verb ? `Last action: ${lastActivity.verb}` : undefined}
+        lastModule={lastActivity?.moduleName || undefined}
         daysUntilDeadline={nextDeadline?.daysRemaining ?? undefined}
         deadlineCourse={nextDeadline?.courseTitle}
+        resumeCourseId={lastActivity?.courseId || courses.find(c => c.status === "in_progress")?.id}
       />
 
       <div className="flex gap-10">
@@ -117,6 +118,7 @@ export default function LearnDashboard() {
             {displayedCourses.map((course, idx) => (
               <CourseTimelineCard
                 key={course.id}
+                courseId={course.id}
                 title={course.title}
                 description={course.description}
                 category={course.category}
@@ -128,6 +130,8 @@ export default function LearnDashboard() {
                 dueIn={getDueLabel(course.dueDate, course.status)}
                 color={course.color}
                 index={idx}
+                totalModules={(course as { totalModules?: number }).totalModules}
+                completedModules={(course as { completedModules?: number }).completedModules}
               />
             ))}
           </div>

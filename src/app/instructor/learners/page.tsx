@@ -26,32 +26,47 @@ export default function LearnersPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/users")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.users) {
-          setLearners(data.users.map((u: { rowKey: string; name: string; employeeId: string; facility: string; department: string; position: string; updatedAt?: string }) => ({
+    Promise.all([
+      fetch("/api/admin/users").then((r) => r.json()),
+      fetch("/api/admin/enrollments").then((r) => r.json()),
+    ])
+      .then(([userData, enrollData]) => {
+        const users = userData.users || [];
+        const enrollments = enrollData.enrollments || [];
+
+        // Group enrollments by userId
+        const enrollmentsByUser: Record<string, Array<{ status: string; score: number; dueDate: string; completedDate: string }>> = {};
+        for (const e of enrollments) {
+          if (!enrollmentsByUser[e.userId]) enrollmentsByUser[e.userId] = [];
+          enrollmentsByUser[e.userId].push(e);
+        }
+
+        setLearners(users.map((u: { rowKey: string; name: string; employeeId: string; facility: string; department: string; position: string; updatedAt?: string }) => {
+          const userEnrollments = enrollmentsByUser[u.rowKey] || [];
+          const completed = userEnrollments.filter((e: { status: string }) => e.status === "completed");
+          const scores = completed.map((e: { score: number }) => e.score).filter((s: number) => s > 0);
+          const overdue = userEnrollments.filter((e: { dueDate: string; status: string }) => e.dueDate && new Date(e.dueDate) < new Date() && e.status !== "completed").length;
+
+          return {
             id: u.rowKey,
             name: u.name,
             employeeId: u.employeeId,
             facility: u.facility,
             department: u.department,
             role: u.position,
-            coursesAssigned: 0,
-            coursesCompleted: 0,
-            overdue: 0,
-            avgScore: 0,
+            coursesAssigned: userEnrollments.length,
+            coursesCompleted: completed.length,
+            overdue,
+            avgScore: scores.length > 0 ? Math.round(scores.reduce((s: number, v: number) => s + v, 0) / scores.length) : 0,
             lastActive: u.updatedAt || "",
-          })));
-        }
+          };
+        }));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const mockLearners = learners;
-
-  const filtered = mockLearners
+  const filtered = learners
     .filter((l) => {
       if (!search) return true;
       const q = search.toLowerCase();
@@ -64,7 +79,7 @@ export default function LearnersPage() {
       return a.name.localeCompare(b.name);
     });
 
-  const totalOverdue = mockLearners.reduce((sum, l) => sum + l.overdue, 0);
+  const totalOverdue = learners.reduce((sum, l) => sum + l.overdue, 0);
 
   return (
     <div className="p-6 md:p-10 max-w-[1200px] mx-auto">
@@ -73,7 +88,7 @@ export default function LearnersPage() {
           Learners
         </h1>
         <p className="mt-2" style={{ fontFamily: "var(--font-body)", fontSize: "15px", color: "var(--text-body)" }}>
-          {mockLearners.length} learners across {new Set(mockLearners.map(l => l.facility)).size} facilities
+          {learners.length} learners across {new Set(learners.map(l => l.facility)).size} facilities
           {totalOverdue > 0 && <span style={{ color: "var(--amber-600)", fontWeight: 600 }}> · {totalOverdue} overdue training{totalOverdue > 1 ? "s" : ""}</span>}
         </p>
       </div>
@@ -245,7 +260,7 @@ export default function LearnersPage() {
       </div>
 
       <div className="mt-4 text-right" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
-        Showing {filtered.length} of {mockLearners.length} learners
+        Showing {filtered.length} of {learners.length} learners
       </div>
     </div>
   );

@@ -1,10 +1,12 @@
 "use client";
 
 import { motion } from "motion/react";
+import Link from "next/link";
 
 export type CourseStatus = "in_progress" | "completed" | "overdue" | "not_started" | "due_soon";
 
 interface CourseTimelineCardProps {
+  courseId?: string;
   title: string;
   description: string;
   category: string;
@@ -15,8 +17,10 @@ interface CourseTimelineCardProps {
   status: CourseStatus;
   dueIn?: string;
   currentModule?: string;
-  color: string; // gradient class like "from-teal-600 to-teal-400"
+  color: string;
   index: number;
+  totalModules?: number;
+  completedModules?: number;
 }
 
 const statusConfig: Record<CourseStatus, { label: string; bg: string; text: string; border: string; dot: string }> = {
@@ -58,6 +62,7 @@ const statusConfig: Record<CourseStatus, { label: string; bg: string; text: stri
 };
 
 export function CourseTimelineCard({
+  courseId,
   title,
   description,
   category,
@@ -70,6 +75,8 @@ export function CourseTimelineCard({
   currentModule,
   color,
   index,
+  totalModules,
+  completedModules,
 }: CourseTimelineCardProps) {
   const config = statusConfig[status];
   const actionLabel = status === "completed" ? "VIEW CERTIFICATE" : status === "not_started" ? "START" : "CONTINUE";
@@ -196,31 +203,43 @@ export function CourseTimelineCard({
                   </p>
                 )}
 
-                {/* Progress bar */}
+                {/* Progress bar + module count */}
                 {status !== "not_started" && status !== "completed" && (
-                  <div className="mt-3 flex items-center gap-3">
-                    <div
-                      className="flex-1 h-1.5 rounded-full overflow-hidden"
-                      style={{ backgroundColor: "var(--stone-100)" }}
-                    >
-                      <motion.div
-                        className="h-full rounded-full"
-                        style={{ backgroundColor: config.dot }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.8, delay: 0.3 + index * 0.08, ease: [0.2, 0, 0, 1] }}
-                      />
+                  <div className="mt-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex-1 h-1.5 rounded-full overflow-hidden"
+                        style={{ backgroundColor: "var(--stone-100)" }}
+                      >
+                        <motion.div
+                          className="h-full rounded-full"
+                          style={{ backgroundColor: config.dot }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progress}%` }}
+                          transition={{ duration: 0.8, delay: 0.3 + index * 0.08, ease: [0.2, 0, 0, 1] }}
+                        />
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: "var(--font-body)",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          color: config.dot,
+                        }}
+                      >
+                        {progress}%
+                      </span>
                     </div>
-                    <span
-                      style={{
-                        fontFamily: "var(--font-body)",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        color: config.dot,
-                      }}
-                    >
-                      {progress}%
-                    </span>
+                    {totalModules !== undefined && totalModules > 0 && (
+                      <div className="mt-1.5" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+                        {completedModules || 0} / {totalModules} modules completed
+                      </div>
+                    )}
+                  </div>
+                )}
+                {status === "completed" && totalModules !== undefined && totalModules > 0 && (
+                  <div className="mt-2" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+                    {totalModules} / {totalModules} modules completed
                   </div>
                 )}
               </div>
@@ -283,8 +302,9 @@ export function CourseTimelineCard({
             </span>
           </div>
 
-          <button
-            className="rounded-lg px-5 py-2.5 transition-colors duration-200"
+          <Link
+            href={courseId ? `/play?courseId=${courseId}` : "#"}
+            className="rounded-lg px-5 py-2.5 transition-colors duration-200 inline-block"
             style={{
               fontFamily: "var(--font-label)",
               fontSize: "12px",
@@ -295,7 +315,7 @@ export function CourseTimelineCard({
             }}
           >
             {actionLabel}
-          </button>
+          </Link>
         </div>
       </div>
     </motion.div>

@@ -157,7 +157,11 @@ export async function GET(request: NextRequest) {
       registration,
     });
 
-    if (!doc) return xapiError("State document not found", 404);
+    if (!doc) {
+      // Return empty 200 instead of 404 — Storyline expects this for first-time resume checks
+      const { NextResponse: NR } = await import("next/server");
+      return new NR(null, { status: 200, headers: { "X-Experience-API-Version": "1.0.3" } });
+    }
 
     const { NextResponse } = await import("next/server");
     const response = new NextResponse(doc.content, {

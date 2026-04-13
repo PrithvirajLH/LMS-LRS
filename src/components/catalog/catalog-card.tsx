@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import Link from "next/link";
 
-export type EnrollStatus = "enrolled" | "available" | "completed";
+export type EnrollStatus = "enrolled" | "available" | "completed" | "in_progress";
 
 interface CatalogCardProps {
   id: string;
@@ -23,6 +23,7 @@ interface CatalogCardProps {
 const statusConfig: Record<EnrollStatus, { label: string; bg: string; text: string }> = {
   enrolled: { label: "ENROLLED", bg: "var(--teal-50)", text: "var(--teal-600)" },
   available: { label: "AVAILABLE", bg: "var(--stone-100)", text: "var(--stone-600)" },
+  in_progress: { label: "IN PROGRESS", bg: "var(--teal-50)", text: "var(--teal-600)" },
   completed: { label: "COMPLETED", bg: "#E8F0E8", text: "#445A73" },
 };
 
@@ -180,10 +181,25 @@ export function CatalogCard({
         className="flex items-center justify-between px-5 py-3.5"
         style={{ borderTop: "1px solid var(--border-default)", backgroundColor: "var(--bg-surface)" }}
       >
-        {enrollStatus === "enrolled" ? (
+        {enrollStatus === "available" ? (
+          <button
+            onClick={() => onEnroll?.(id)}
+            className="rounded-[5px] px-5 py-2 transition-colors duration-200"
+            style={{
+              fontFamily: "var(--font-label)",
+              fontSize: "11px",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              backgroundColor: "var(--btn-primary)",
+              color: "var(--teal-50)",
+            }}
+          >
+            Enroll
+          </button>
+        ) : enrollStatus === "enrolled" ? (
           <Link href={`/play?courseId=${id}`}>
-            <button
-              className="rounded-[5px] px-5 py-2 transition-colors duration-200"
+            <span
+              className="rounded-[5px] px-5 py-2 transition-colors duration-200 inline-block"
               style={{
                 fontFamily: "var(--font-label)",
                 fontSize: "11px",
@@ -194,38 +210,41 @@ export function CatalogCard({
               }}
             >
               Start Course
-            </button>
+            </span>
           </Link>
-        ) : enrollStatus === "completed" ? (
-          <button
-            className="rounded-[5px] px-5 py-2 transition-colors duration-200"
-            style={{
-              fontFamily: "var(--font-label)",
-              fontSize: "11px",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              backgroundColor: "#445A73",
-              color: "#EEF3F8",
-            }}
-          >
-            View Certificate
-          </button>
+        ) : enrollStatus === "in_progress" ? (
+          <Link href={`/play?courseId=${id}`}>
+            <span
+              className="rounded-[5px] px-5 py-2 transition-colors duration-200 inline-block"
+              style={{
+                fontFamily: "var(--font-label)",
+                fontSize: "11px",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                backgroundColor: "var(--btn-primary)",
+                color: "var(--teal-50)",
+              }}
+            >
+              Continue
+            </span>
+          </Link>
         ) : (
-          <button
-            onClick={() => onEnroll?.(id)}
-            className="rounded-[5px] px-5 py-2 transition-colors duration-200"
-            style={{
-              fontFamily: "var(--font-label)",
-              fontSize: "11px",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              backgroundColor: "var(--bg-raised)",
-              color: "var(--btn-primary)",
-              border: "1.5px solid var(--btn-primary)",
-            }}
-          >
-            Enroll
-          </button>
+          <Link href={`/play?courseId=${id}`}>
+            <span
+              className="rounded-[5px] px-5 py-2 transition-colors duration-200 inline-block"
+              style={{
+                fontFamily: "var(--font-label)",
+                fontSize: "11px",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                backgroundColor: "var(--bg-raised)",
+                color: "var(--text-muted)",
+                border: "1.5px solid var(--border-default)",
+              }}
+            >
+              Review
+            </span>
+          </Link>
         )}
 
         <button

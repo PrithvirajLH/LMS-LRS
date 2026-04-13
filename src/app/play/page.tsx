@@ -41,18 +41,10 @@ const fallbackCourses: Record<string, { title: string; category: string; activit
   },
 };
 
-// Mock credential — will come from auth system
-// Using the credential created during LRS setup
-const MOCK_AUTH = {
+// LRS credential — shared across all learners
+const LRS_AUTH = {
   apiKey: "ak_54583e3537ec75a878be7823f5d2aca0e2df4b60bbe6bc33",
   apiSecret: "as_70dd641f398b8fdeee43a6c24f0ed563441865698a256b8da8e9dfb0b2b72fa0",
-  actor: {
-    account: {
-      homePage: "https://lms.creativeminds.com",
-      name: "EMP-001",
-    },
-    name: "Jane Smith",
-  },
 };
 
 export default function CoursePlayerPage() {
@@ -76,45 +68,64 @@ function CoursePlayer() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [actor, setActor] = useState<{ account: { homePage: string; name: string }; name: string } | null>(null);
 
-  // Try to load course from API (Blob Storage), fall back to /public
+  // Load course + user data from launch API
   useEffect(() => {
     setMounted(true);
-    fetch("/api/admin/courses")
+
+    fetch(`/api/learner/launch?courseId=${encodeURIComponent(courseId)}`)
       .then((r) => r.json())
       .then((data) => {
-        const apiCourse = (data.courses || []).find(
-          (c: { rowKey: string }) => c.rowKey === courseId
-        );
-        if (apiCourse) {
-          setCourse({
-            title: apiCourse.title,
-            category: apiCourse.category,
-            activityId: apiCourse.activityId,
-            contentPath: apiCourse.launchUrl,
-          });
-        }
+        if (data.error) return;
+
+        // Set actor from session
+        setActor(data.actor);
+
+        // Set course — prefer proxy URL (no public blob access needed)
+        setCourse({
+          title: data.title,
+          category: data.category,
+          activityId: data.activityId,
+          contentPath: data.proxyUrl || data.publicUrl,
+        });
       })
-      .catch(() => {}); // Silently fall back to hardcoded
+      .catch(() => {
+        // Fall back to /api/auth/me for actor
+        fetch("/api/auth/me")
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.user) {
+              setActor({
+                account: { homePage: "https://lms.creativeminds.com", name: d.user.email },
+                name: d.user.name,
+              });
+            }
+          })
+          .catch(() => {});
+      });
   }, [courseId]);
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Build xAPI launch URL with Tin Can params
   const buildLaunchUrl = useCallback(() => {
+    if (!actor) return ""; // Wait for user data
+
     const params = new URLSearchParams();
     params.set("endpoint", getLrsEndpoint());
-    params.set("actor", JSON.stringify(MOCK_AUTH.actor));
+    params.set("actor", JSON.stringify(actor));
     params.set("activity_id", course.activityId);
 
-    // If we have credentials, add auth
-    if (MOCK_AUTH.apiKey && MOCK_AUTH.apiSecret) {
-      const auth = btoa(`${MOCK_AUTH.apiKey}:${MOCK_AUTH.apiSecret}`);
+    if (LRS_AUTH.apiKey && LRS_AUTH.apiSecret) {
+      const auth = btoa(`${LRS_AUTH.apiKey}:${LRS_AUTH.apiSecret}`);
       params.set("auth", `Basic ${auth}`);
     }
 
-    return `${course.contentPath}?${params.toString()}`;
-  }, [course]);
+    // If contentPath already has query params (SAS token), append with &
+    const separator = course.contentPath.includes("?") ? "&" : "?";
+    return `${course.contentPath}${separator}${params.toString()}`;
+  }, [course, actor]);
 
   // Toggle fullscreen
   const toggleFullscreen = useCallback(() => {
@@ -168,7 +179,7 @@ function CoursePlayer() {
 
       {/* Course iframe — only rendered on client to avoid hydration mismatch */}
       <div className="flex-1 relative">
-        {mounted && (
+        {mounted && actor && buildLaunchUrl() && (
           <iframe
             ref={iframeRef}
             src={buildLaunchUrl()}
@@ -180,7 +191,7 @@ function CoursePlayer() {
         )}
 
         {/* Loading overlay — fades out when iframe loads */}
-        {!iframeLoaded && (
+        {(!iframeLoaded || !actor) && (
           <div
             className="absolute inset-0 flex items-center justify-center z-10 transition-opacity duration-500"
             style={{ backgroundColor: "var(--bg-obsidian, #0A1628)" }}

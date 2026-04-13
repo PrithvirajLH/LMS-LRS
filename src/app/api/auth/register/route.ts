@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await registerUser({ name, email, employeeId, password, facility, department, position, role });
+    // Self-registration is always "learner" — instructors/admins are created by admins only
+    const user = await registerUser({ name, email, employeeId, password, facility, department, position, role: "learner" });
 
     // Auto-login after registration
     const sessionId = await createSession(user);

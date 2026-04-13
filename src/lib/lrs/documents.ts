@@ -89,9 +89,8 @@ export async function putDocument(params: {
     return { etag: "", status: 409, error: "ETag mismatch — document was modified by another client" };
   }
 
-  if (existing && !params.ifMatch && !params.ifNoneMatch) {
-    return { etag: "", status: 409, error: "If-Match header required when updating existing document" };
-  }
+  // If no concurrency headers provided, allow upsert (Storyline doesn't send If-Match)
+  // Strict xAPI would reject here, but practical LRS implementations allow it
 
   const newEtag = generateETag(params.content);
   const now = new Date().toISOString();

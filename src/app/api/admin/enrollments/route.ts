@@ -1,3 +1,4 @@
+import { requireAuth, isAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import {
   createEnrollment,
@@ -10,6 +11,7 @@ import {
 // POST /api/admin/enrollments — Enroll user(s) in a course
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const body = await request.json();
 
     // Bulk enroll: { userIds: [...], courseId, courseTitle, assignedDate, dueDate }
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest) {
 // GET /api/admin/enrollments — List enrollments (optionally by userId)
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const userId = request.nextUrl.searchParams.get("userId");
 
     if (userId) {
@@ -66,6 +69,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/admin/enrollments — Mark enrollment as completed
 export async function PATCH(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const body = await request.json();
     const { userId, courseId, completedDate, score, timeSpent } = body;
 

@@ -1,3 +1,4 @@
+import { requireAuth, isAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { getTableClient } from "@/lib/azure/table-client";
 import { downloadBlob } from "@/lib/azure/blob-client";
@@ -6,6 +7,7 @@ import type { StatementEntity, XAPIStatement } from "@/lib/lrs/types";
 // GET /api/admin/statements — Browse statements for admin UI
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
     const url = request.nextUrl;
     const limit = Math.min(parseInt(url.searchParams.get("limit") || "25", 10), 100);
     const verb = url.searchParams.get("verb") || undefined;

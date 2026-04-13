@@ -171,11 +171,8 @@ export const SidebarLink = ({
   const { open, animate, hoveredHref, setHoveredHref } = useSidebar();
   const pathname = usePathname();
 
-  // Check if this link is the root of its section (e.g. /learn, /instructor)
-  const isRootLink = link.href === "/learn" || link.href === "/instructor";
-  const active = isRootLink
-    ? pathname === link.href
-    : pathname.startsWith(link.href) && !isRootLink;
+  // Exact match only — no prefix matching that causes parent/child conflicts
+  const active = pathname === link.href;
 
   const isHighlighted = hoveredHref === link.href;
   // Show highlight on: hovered item, OR active item when nothing is hovered

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { IconUpload, IconExternalLink, IconArchive, IconEye } from "@tabler/icons-react";
+import { IconUpload, IconExternalLink, IconEye, IconWorldUp, IconWorldOff } from "@tabler/icons-react";
 
 interface Course {
   rowKey: string;
@@ -182,7 +182,11 @@ export default function ManageCoursesPage() {
                         className="rounded-lg p-2 transition-colors duration-150 hover:bg-[var(--bg-surface)]"
                         title={course.status === "published" ? "Unpublish" : "Publish"}
                       >
-                        <IconArchive size={16} style={{ color: "var(--text-muted)" }} />
+                        {course.status === "published" ? (
+                          <IconWorldOff size={16} style={{ color: "var(--amber-600)" }} />
+                        ) : (
+                          <IconWorldUp size={16} style={{ color: "#3A6A5A" }} />
+                        )}
                       </button>
                       <a
                         href={`/play?courseId=${course.rowKey}`}

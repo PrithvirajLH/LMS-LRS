@@ -1,6 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
 import AdmZip from "adm-zip";
-import { BlobServiceClient } from "@azure/storage-blob";
+import {
+  BlobServiceClient,
+  StorageSharedKeyCredential,
+  AccountSASPermissions,
+  AccountSASResourceTypes,
+  AccountSASServices,
+  SASProtocol,
+  generateAccountSASQueryParameters,
+} from "@azure/storage-blob";
 import { getTableClient } from "@/lib/azure/table-client";
 import { parseTinCanXml, type TinCanManifest } from "./tincan-parser";
 
@@ -96,6 +104,11 @@ export async function uploadCourseZip(
       relativePath = relativePath.substring(rootPrefix.length);
     }
 
+    // Security: reject path traversal attempts
+    if (relativePath.includes("..") || relativePath.startsWith("/") || relativePath.includes("\\")) {
+      continue; // Skip dangerous paths
+    }
+
     const blobName = `${blobBasePath}${relativePath}`;
     const blockBlob = container.getBlockBlobClient(blobName);
     const data = entry.getData();
@@ -146,7 +159,7 @@ export async function listCourses(status?: string): Promise<CourseEntity[]> {
 
   let filter = "PartitionKey eq 'course'";
   if (status) {
-    filter += ` and status eq '${status}'`;
+    filter += ` and status eq '${status.replace(/'/g, "''")}'`;
   }
 
   const iter = table.listEntities<CourseEntity>({
@@ -186,11 +199,64 @@ export async function updateCourse(courseId: string, updates: Partial<CourseEnti
 }
 
 /**
- * Get the public blob URL for a course's launch file.
+ * Parse account name and key from connection string.
+ */
+function getStorageCredentials(): { accountName: string; accountKey: string } {
+  const accountName = connectionString.match(/AccountName=([^;]+)/)?.[1] || "";
+  const accountKey = connectionString.match(/AccountKey=([^;]+)/)?.[1] || "";
+  return { accountName, accountKey };
+}
+
+/**
+ * Generate an account-level SAS token for blob read access.
+ * Valid for 4 hours — covers all blobs in the courses container
+ * so Storyline's relative asset paths work.
+ */
+export function generateCourseSasToken(): string {
+  const { accountName, accountKey } = getStorageCredentials();
+  const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
+
+  const expiresOn = new Date(Date.now() + 4 * 60 * 60 * 1000); // 4 hours
+  const startsOn = new Date(Date.now() - 5 * 60 * 1000); // 5 min ago (clock skew)
+
+  const sasToken = generateAccountSASQueryParameters(
+    {
+      services: AccountSASServices.parse("b").toString(),           // blob only
+      resourceTypes: AccountSASResourceTypes.parse("co").toString(), // container + object
+      permissions: AccountSASPermissions.parse("r"),                 // read only
+      startsOn,
+      expiresOn,
+      protocol: SASProtocol.HttpsAndHttp,
+    },
+    sharedKeyCredential
+  ).toString();
+
+  return sasToken;
+}
+
+/**
+ * Get the blob URL for a course's launch file.
+ * Uses public container access if available, otherwise generates a SAS token.
+ *
+ * Note: Storyline loads assets via relative paths from the HTML file.
+ * If the container is public (blob access), relative paths work automatically.
+ * If using SAS, only the launch HTML is signed — assets need container-level SAS
+ * or the container must be public.
  */
 export function getCourselaunchUrl(blobBasePath: string, launchFile: string): string {
-  const accountName = connectionString.match(/AccountName=([^;]+)/)?.[1];
-  return `https://${accountName}.blob.core.windows.net/courses/${blobBasePath}${launchFile}`;
+  const { accountName } = getStorageCredentials();
+  const baseUrl = `https://${accountName}.blob.core.windows.net/courses/${blobBasePath}${launchFile}`;
+  return baseUrl;
+}
+
+/**
+ * Get a SAS-signed URL for a course's launch file.
+ * Use this when the container is not public.
+ */
+export function getCourselaunchUrlWithSas(blobBasePath: string, launchFile: string): string {
+  const { accountName } = getStorageCredentials();
+  const sasToken = generateCourseSasToken();
+  return `https://${accountName}.blob.core.windows.net/courses/${blobBasePath}${launchFile}?${sasToken}`;
 }
 
 // ── Helpers ──

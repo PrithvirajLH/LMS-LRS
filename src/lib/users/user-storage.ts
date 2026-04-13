@@ -1,6 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import { getTableClient } from "@/lib/azure/table-client";
 
+// Escape single quotes in OData filter values
+function escapeOData(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
 // ── User Entity ──
 export interface UserEntity {
   partitionKey: string; // facility slug
@@ -68,7 +73,7 @@ export async function listUsers(facility?: string): Promise<UserEntity[]> {
   const users: UserEntity[] = [];
 
   const filter = facility
-    ? `PartitionKey eq '${facility.toLowerCase().replace(/\s+/g, "-")}'`
+    ? `PartitionKey eq '${escapeOData(facility.toLowerCase().replace(/\s+/g, "-"))}'`
     : undefined;
 
   const iter = table.listEntities<UserEntity>({
@@ -86,7 +91,7 @@ export async function getUser(userId: string): Promise<UserEntity | null> {
   const table = await getTableClient("users");
   // We need to scan since we don't know the partition key
   const iter = table.listEntities<UserEntity>({
-    queryOptions: { filter: `RowKey eq '${userId}'` },
+    queryOptions: { filter: `RowKey eq '${escapeOData(userId)}'` },
   });
 
   for await (const entity of iter) {
@@ -163,7 +168,7 @@ export async function getUserEnrollments(userId: string): Promise<EnrollmentEnti
   const enrollments: EnrollmentEntity[] = [];
 
   const iter = table.listEntities<EnrollmentEntity>({
-    queryOptions: { filter: `PartitionKey eq '${userId}'` },
+    queryOptions: { filter: `PartitionKey eq '${escapeOData(userId)}'` },
   });
 
   for await (const entity of iter) {

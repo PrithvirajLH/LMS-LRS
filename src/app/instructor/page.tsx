@@ -10,10 +10,18 @@ interface Stats {
   publishedCourses: number;
   draftCourses: number;
   totalStatements: number;
+  totalLearners: number;
+}
+
+interface RecentActivityItem {
+  action: string;
+  detail: string;
+  time: string;
 }
 
 export default function InstructorDashboard() {
-  const [stats, setStats] = useState<Stats>({ totalCourses: 0, publishedCourses: 0, draftCourses: 0, totalStatements: 0 });
+  const [stats, setStats] = useState<Stats>({ totalCourses: 0, publishedCourses: 0, draftCourses: 0, totalStatements: 0, totalLearners: 0 });
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
 
   useEffect(() => {
     // Fetch course stats
@@ -35,6 +43,22 @@ export default function InstructorDashboard() {
       .then((r) => r.json())
       .then((data) => {
         setStats((prev) => ({ ...prev, totalStatements: data.totalStatements || 0 }));
+        // Build recent activity from top actors/verbs
+        const activity: RecentActivityItem[] = [];
+        if (data.topVerbs) {
+          for (const v of data.topVerbs.slice(0, 5)) {
+            activity.push({ action: `${v.count} ${v.verb} statements`, detail: "This month", time: "recent" });
+          }
+        }
+        setRecentActivity(activity);
+      })
+      .catch(() => {});
+
+    // Fetch learner count
+    fetch("/api/admin/users")
+      .then((r) => r.json())
+      .then((data) => {
+        setStats((prev) => ({ ...prev, totalLearners: (data.users || []).length }));
       })
       .catch(() => {});
   }, []);
@@ -55,7 +79,7 @@ export default function InstructorDashboard() {
         {[
           { label: "Published Courses", value: stats.publishedCourses, icon: <IconBooks size={22} stroke={1.5} />, color: "#445A73" },
           { label: "Draft Courses", value: stats.draftCourses, icon: <IconClock size={22} stroke={1.5} />, color: "var(--text-muted)" },
-          { label: "Total Learners", value: 24, icon: <IconUsers size={22} stroke={1.5} />, color: "#445A73" },
+          { label: "Total Learners", value: stats.totalLearners, icon: <IconUsers size={22} stroke={1.5} />, color: "#445A73" },
           { label: "xAPI Statements", value: stats.totalStatements, icon: <IconTrendingUp size={22} stroke={1.5} />, color: "#445A73" },
         ].map((stat, i) => (
           <motion.div
@@ -107,14 +131,13 @@ export default function InstructorDashboard() {
         Recent Activity
       </h2>
       <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-raised)", border: "1px solid var(--border-default)" }}>
-        {[
-          { action: "Course published", detail: "What is Dementia: Etiology and Treatment", time: "2 hours ago" },
-          { action: "New enrollment", detail: "Jane Smith enrolled in Anti-Harassment Training", time: "5 hours ago" },
-          { action: "Course completed", detail: "Bob Johnson completed Infection Control (Score: 88%)", time: "1 day ago" },
-          { action: "Course uploaded", detail: "Facebook Expectations uploaded as draft", time: "2 days ago" },
-          { action: "Assessment passed", detail: "Alice Chen passed HIPAA Privacy Quiz (95%)", time: "3 days ago" },
-        ].map((item, idx) => (
-          <div key={idx} className="flex items-center gap-4 px-6 py-4 transition-colors duration-150 hover:bg-[var(--teal-50)]" style={{ borderBottom: idx < 4 ? "1px solid var(--border-default)" : "none" }}>
+        {recentActivity.length === 0 ? (
+          <div className="px-6 py-8 text-center" style={{ fontFamily: "var(--font-body)", fontSize: "14px", color: "var(--text-muted)" }}>
+            No recent activity yet. Activity will appear here as learners interact with courses.
+          </div>
+        ) : null}
+        {recentActivity.map((item, idx) => (
+          <div key={idx} className="flex items-center gap-4 px-6 py-4 transition-colors duration-150 hover:bg-[var(--teal-50)]" style={{ borderBottom: idx < recentActivity.length - 1 ? "1px solid var(--border-default)" : "none" }}>
             <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#445A73" }} />
             <div className="flex-1">
               <span style={{ fontFamily: "var(--font-body)", fontSize: "14px", fontWeight: 600, color: "var(--text-primary)" }}>{item.action}</span>

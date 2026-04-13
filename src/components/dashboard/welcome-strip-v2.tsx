@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import Link from "next/link";
 
 interface WelcomeStripV2Props {
   name: string;
@@ -8,6 +9,7 @@ interface WelcomeStripV2Props {
   lastModule?: string;
   daysUntilDeadline?: number;
   deadlineCourse?: string;
+  resumeCourseId?: string;
 }
 
 export function WelcomeStripV2({
@@ -16,6 +18,7 @@ export function WelcomeStripV2({
   lastModule,
   daysUntilDeadline,
   deadlineCourse,
+  resumeCourseId,
 }: WelcomeStripV2Props) {
   return (
     <motion.div
@@ -93,21 +96,23 @@ export function WelcomeStripV2({
 
           {/* Resume button */}
           {lastCourse && (
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="mt-5 rounded-lg px-6 py-3 transition-colors duration-200"
-              style={{
-                fontFamily: "var(--font-label)",
-                fontSize: "12px",
-                letterSpacing: "var(--tracking-wide)",
-                textTransform: "uppercase" as const,
-                backgroundColor: "var(--btn-secondary, var(--teal-400))",
-                color: "var(--teal-50)",
-              }}
-            >
-              Resume Course
-            </motion.button>
+            <Link href={resumeCourseId ? `/play?courseId=${resumeCourseId}` : "/learn/training"}>
+              <motion.span
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="mt-5 rounded-lg px-6 py-3 transition-colors duration-200 inline-block"
+                style={{
+                  fontFamily: "var(--font-label)",
+                  fontSize: "12px",
+                  letterSpacing: "var(--tracking-wide)",
+                  textTransform: "uppercase" as const,
+                  backgroundColor: "var(--btn-secondary, var(--teal-400))",
+                  color: "var(--teal-50)",
+                }}
+              >
+                Resume Course
+              </motion.span>
+            </Link>
           )}
         </div>
 

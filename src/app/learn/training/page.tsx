@@ -96,7 +96,7 @@ export default function TrainingPage() {
             <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <AnimatePresence mode="popLayout">
                 {filtered.map((course, idx) => (
-                  <CourseCard key={course.id} title={course.title} category={course.category} duration={course.duration} credits={course.credits} progress={course.progress} status={course.status} dueIn={course.dueIn} currentModule={course.currentModule} color={course.color} index={idx} />
+                  <CourseCard key={course.id} courseId={course.id} title={course.title} category={course.category} duration={course.duration} credits={course.credits} progress={course.progress} status={course.status} dueIn={course.dueIn} currentModule={course.currentModule} color={course.color} index={idx} />
                 ))}
               </AnimatePresence>
             </motion.div>
