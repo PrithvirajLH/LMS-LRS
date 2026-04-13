@@ -25,8 +25,8 @@ function getLrsEndpoint() {
   return "/api/xapi/";
 }
 
-// Mock course data — will come from API
-const courses: Record<string, { title: string; category: string; activityId: string; contentPath: string }> = {
+// Fallback course data for legacy /public paths
+const fallbackCourses: Record<string, { title: string; category: string; activityId: string; contentPath: string }> = {
   "dementia": {
     title: "What is Dementia: Etiology and Treatment",
     category: "Clinical Skills",
@@ -68,14 +68,35 @@ export default function CoursePlayerPage() {
 function CoursePlayer() {
   const searchParams = useSearchParams();
   const courseId = searchParams.get("courseId") || "dementia";
-  const course = courses[courseId] || courses["dementia"];
 
+  const [course, setCourse] = useState(
+    fallbackCourses[courseId] || fallbackCourses["dementia"]
+  );
   const [progress, setProgress] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
+  // Try to load course from API (Blob Storage), fall back to /public
+  useEffect(() => {
+    setMounted(true);
+    fetch("/api/admin/courses")
+      .then((r) => r.json())
+      .then((data) => {
+        const apiCourse = (data.courses || []).find(
+          (c: { rowKey: string }) => c.rowKey === courseId
+        );
+        if (apiCourse) {
+          setCourse({
+            title: apiCourse.title,
+            category: apiCourse.category,
+            activityId: apiCourse.activityId,
+            contentPath: apiCourse.launchUrl,
+          });
+        }
+      })
+      .catch(() => {}); // Silently fall back to hardcoded
+  }, [courseId]);
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 

@@ -7,6 +7,9 @@ const TABLE_NAMES = {
   statements: "statements",
   statementIndex: "statementIndex",
   documents: "documents",
+  courses: "courses",
+  users: "users",
+  enrollments: "enrollments",
 } as const;
 
 type TableName = keyof typeof TABLE_NAMES;
