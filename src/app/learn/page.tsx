@@ -37,7 +37,7 @@ const mockCourses: Course[] = [
     status: "in_progress",
     dueIn: "Due in 20 days",
     currentModule: "Module 3: Reporting Procedures",
-    color: "from-[#3A6870] to-[#8ABCC2]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
   {
     id: "2",
@@ -51,7 +51,7 @@ const mockCourses: Course[] = [
     status: "in_progress",
     dueIn: "Due in 12 days",
     currentModule: "Drag and Drop: Symptoms vs Causes",
-    color: "from-[#5A6A90] to-[#8A9CC4]",
+    color: "from-[#2A3D52] to-[#647A93]",
   },
   {
     id: "3",
@@ -64,7 +64,7 @@ const mockCourses: Course[] = [
     progress: 0,
     status: "overdue",
     dueIn: "3 days overdue",
-    color: "from-[#7A5430] to-[#D8B890]",
+    color: "from-[#A06830] to-[#D4A860]",
   },
   {
     id: "4",
@@ -77,10 +77,23 @@ const mockCourses: Course[] = [
     progress: 0,
     status: "not_started",
     dueIn: "Due in 30 days",
-    color: "from-[#3A6870] to-[#5A6A90]",
+    color: "from-[#445A73] to-[#647A93]",
   },
   {
     id: "5",
+    title: "Bloodborne Pathogens",
+    description: "OSHA requirements for exposure control, safe handling of sharps, and post-exposure procedures in healthcare.",
+    category: "Safety",
+    duration: "20 minutes",
+    credits: 2,
+    creditsEarned: 0,
+    progress: 0,
+    status: "due_soon",
+    dueIn: "Due in 3 days",
+    color: "from-[#A06830] to-[#D4A860]",
+  },
+  {
+    id: "6",
     title: "Infection Control Annual Review",
     description: "Best practices for preventing infections, hand hygiene protocols, and PPE usage in senior care settings.",
     category: "Compliance",
@@ -89,10 +102,10 @@ const mockCourses: Course[] = [
     creditsEarned: 2,
     progress: 100,
     status: "completed",
-    color: "from-[#5A6A90] to-[#C4CCE0]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
   {
-    id: "6",
+    id: "7",
     title: "Fire Safety & Emergency Procedures",
     description: "Emergency evacuation procedures, fire extinguisher use, and life safety protocols for healthcare facilities.",
     category: "Safety",
@@ -101,12 +114,12 @@ const mockCourses: Course[] = [
     creditsEarned: 2,
     progress: 100,
     status: "completed",
-    color: "from-[#5A6A90] to-[#C4CCE0]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
 ];
 
 export default function LearnDashboard() {
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(true);
 
   const activeCourses = mockCourses.filter((c) => c.status !== "completed");
   const completedCourses = mockCourses.filter((c) => c.status === "completed");

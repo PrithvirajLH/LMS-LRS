@@ -25,9 +25,9 @@ const statusConfig: Record<CourseStatus, { label: string; bg: string; text: stri
   },
   completed: {
     label: "COMPLETED",
-    bg: "var(--slate-50)",
-    text: "var(--slate-600)",
-    dot: "var(--slate-400)",
+    bg: "var(--teal-50)",
+    text: "#445A73",
+    dot: "#445A73",
   },
   overdue: {
     label: "OVERDUE",
@@ -227,8 +227,8 @@ export function CourseCard({
               fontSize: "11px",
               letterSpacing: "var(--tracking-wide)",
               textTransform: "uppercase" as const,
-              backgroundColor: status === "completed" ? "var(--slate-400)" : "var(--teal-400)",
-              color: status === "completed" ? "var(--slate-50)" : "var(--teal-50)",
+              backgroundColor: status === "completed" ? "#445A73" : "var(--btn-primary)",
+              color: status === "completed" ? "#EEF3F8" : "var(--teal-50)",
             }}
           >
             {actionLabel}

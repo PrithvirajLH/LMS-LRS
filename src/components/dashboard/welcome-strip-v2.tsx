@@ -24,7 +24,7 @@ export function WelcomeStripV2({
       transition={{ duration: 0.5, ease: [0.2, 0, 0, 1] }}
       className="rounded-2xl px-10 py-8 mb-8 relative overflow-hidden"
       style={{
-        backgroundColor: "var(--bg-dark)",
+        backgroundColor: "var(--bg-obsidian, var(--bg-dark))",
       }}
     >
       {/* Subtle animated gradient overlay */}
@@ -53,7 +53,7 @@ export function WelcomeStripV2({
               fontSize: "11px",
               letterSpacing: "var(--tracking-widest)",
               textTransform: "uppercase" as const,
-              color: "var(--teal-100)",
+              color: "var(--text-on-dark-muted, var(--teal-100))",
             }}
           >
             WELCOME BACK
@@ -65,7 +65,7 @@ export function WelcomeStripV2({
               fontFamily: "var(--font-display)",
               fontStyle: "italic",
               fontSize: "var(--text-display-xl)",
-              color: "var(--teal-50)",
+              color: "var(--text-on-dark, var(--teal-50))",
               lineHeight: "var(--leading-tight)",
             }}
           >
@@ -78,12 +78,12 @@ export function WelcomeStripV2({
                 style={{
                   fontFamily: "var(--font-body)",
                   fontSize: "15px",
-                  color: "var(--teal-100)",
+                  color: "var(--text-on-dark-muted, var(--teal-100))",
                   lineHeight: "var(--leading-relaxed)",
                 }}
               >
                 Continue where you left off —{" "}
-                <strong style={{ fontWeight: 700, color: "var(--teal-50)" }}>{lastCourse}</strong>
+                <strong style={{ fontWeight: 700, color: "var(--text-on-dark, var(--teal-50))" }}>{lastCourse}</strong>
                 {lastModule && (
                   <span style={{ color: "var(--stone-400)" }}> · {lastModule}</span>
                 )}
@@ -102,7 +102,7 @@ export function WelcomeStripV2({
                 fontSize: "12px",
                 letterSpacing: "var(--tracking-wide)",
                 textTransform: "uppercase" as const,
-                backgroundColor: "var(--teal-400)",
+                backgroundColor: "var(--btn-secondary, var(--teal-400))",
                 color: "var(--teal-50)",
               }}
             >

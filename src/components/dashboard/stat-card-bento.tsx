@@ -11,14 +11,14 @@ interface StatCardBentoProps {
 
 const colorMap = {
   teal: "var(--teal-400)",
-  slate: "var(--slate-400)",
+  slate: "#445A73",
   amber: "var(--amber-600)",
   dark: "var(--stone-900)",
 };
 
 const bgMap = {
   teal: "var(--teal-50)",
-  slate: "var(--slate-50)",
+  slate: "var(--teal-50)",
   amber: "var(--amber-50)",
   dark: "var(--stone-100)",
 };

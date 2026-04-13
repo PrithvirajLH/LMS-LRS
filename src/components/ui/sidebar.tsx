@@ -4,6 +4,7 @@ import React, { useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 interface Links {
   label: string;
@@ -15,6 +16,8 @@ interface SidebarContextProps {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   animate: boolean;
+  hoveredHref: string | null;
+  setHoveredHref: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const SidebarContext = createContext<SidebarContextProps | undefined>(
@@ -41,12 +44,13 @@ export const SidebarProvider = ({
   animate?: boolean;
 }) => {
   const [openState, setOpenState] = useState(false);
+  const [hoveredHref, setHoveredHref] = useState<string | null>(null);
 
   const open = openProp !== undefined ? openProp : openState;
   const setOpen = setOpenProp !== undefined ? setOpenProp : setOpenState;
 
   return (
-    <SidebarContext.Provider value={{ open, setOpen, animate: animate }}>
+    <SidebarContext.Provider value={{ open, setOpen, animate, hoveredHref, setHoveredHref }}>
       {children}
     </SidebarContext.Provider>
   );
@@ -84,7 +88,7 @@ export const DesktopSidebar = ({
   children,
   ...props
 }: React.ComponentProps<typeof motion.div>) => {
-  const { open, setOpen, animate } = useSidebar();
+  const { open, setOpen, animate, setHoveredHref } = useSidebar();
   return (
     <motion.div
       className={cn(
@@ -102,7 +106,7 @@ export const DesktopSidebar = ({
         paddingRight: { duration: 0.3, ease: [0.2, 0, 0, 1] },
       }}
       onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseLeave={() => { setOpen(false); setHoveredHref(null); }}
       {...props}
     >
       {children}
@@ -164,30 +168,53 @@ export const SidebarLink = ({
   link: Links;
   className?: string;
 }) => {
-  const { open, animate } = useSidebar();
+  const { open, animate, hoveredHref, setHoveredHref } = useSidebar();
   const pathname = usePathname();
 
   const active = link.href === "/learn"
     ? pathname === "/learn"
     : pathname.startsWith(link.href) && link.href !== "/learn";
 
+  const isHighlighted = hoveredHref === link.href;
+  // Show highlight on: hovered item, OR active item when nothing is hovered
+  const showHighlight = isHighlighted || (active && hoveredHref === null);
+
   return (
-    <a
+    <Link
       href={link.href}
       className={cn(
-        "flex items-center gap-3 group/sidebar h-12 px-3 rounded-xl transition-colors duration-200 overflow-hidden",
+        "flex items-center gap-3 group/sidebar h-12 px-3 rounded-xl overflow-hidden relative",
         className
       )}
-      style={
-        active
-          ? { backgroundColor: "var(--teal-100)" }
-          : undefined
-      }
+      onMouseEnter={() => setHoveredHref(link.href)}
       {...props}
     >
+      {/* Active pill — always visible on current page */}
+      {active && (
+        <div
+          className="absolute inset-0 rounded-xl"
+          style={{ backgroundColor: "var(--teal-200)" }}
+        />
+      )}
+
+      {/* Hover pill — slides between items, lighter shade */}
+      {isHighlighted && !active && (
+        <motion.div
+          layoutId="sidebarHover"
+          className="absolute inset-0 rounded-xl"
+          style={{ backgroundColor: "var(--teal-50)" }}
+          transition={{
+            type: "spring",
+            damping: 30,
+            stiffness: 300,
+            mass: 0.8,
+          }}
+        />
+      )}
+
       <span
-        className="shrink-0"
-        style={{ color: active ? "var(--teal-400)" : "var(--stone-600)" }}
+        className="shrink-0 relative z-10 transition-colors duration-200"
+        style={{ color: active || isHighlighted ? "var(--teal-400)" : "var(--stone-600)" }}
       >
         {link.icon}
       </span>
@@ -209,9 +236,9 @@ export const SidebarLink = ({
             ease: [0.2, 0, 0, 1],
           },
         }}
-        className="whitespace-pre !p-0 !m-0"
+        className="whitespace-pre !p-0 !m-0 relative z-10 transition-colors duration-200"
         style={{
-          color: active ? "var(--teal-600)" : "var(--stone-800)",
+          color: active || isHighlighted ? "var(--teal-600)" : "var(--stone-800)",
           fontFamily: "var(--font-label)",
           fontSize: "16px",
           letterSpacing: "0.04em",
@@ -220,6 +247,6 @@ export const SidebarLink = ({
       >
         {link.label}
       </motion.span>
-    </a>
+    </Link>
   );
 };

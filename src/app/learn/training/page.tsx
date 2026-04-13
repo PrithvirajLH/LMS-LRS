@@ -32,7 +32,7 @@ const allCourses: Course[] = [
     dueIn: "Due in 20 days",
     dueDate: "2026-04-30",
     currentModule: "Module 3: Reporting Procedures",
-    color: "from-[#3A6870] to-[#8ABCC2]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
   {
     id: "2",
@@ -45,7 +45,7 @@ const allCourses: Course[] = [
     dueIn: "Due in 12 days",
     dueDate: "2026-04-22",
     currentModule: "Drag and Drop: Symptoms vs Causes",
-    color: "from-[#5A6A90] to-[#8A9CC4]",
+    color: "from-[#2A3D52] to-[#647A93]",
   },
   {
     id: "3",
@@ -57,7 +57,7 @@ const allCourses: Course[] = [
     status: "overdue",
     dueIn: "3 days overdue",
     dueDate: "2026-04-07",
-    color: "from-[#7A5430] to-[#D8B890]",
+    color: "from-[#A06830] to-[#D4A860]",
   },
   {
     id: "4",
@@ -69,7 +69,7 @@ const allCourses: Course[] = [
     status: "not_started",
     dueIn: "Due in 30 days",
     dueDate: "2026-05-10",
-    color: "from-[#3A6870] to-[#5A6A90]",
+    color: "from-[#445A73] to-[#647A93]",
   },
   {
     id: "5",
@@ -79,7 +79,7 @@ const allCourses: Course[] = [
     credits: 2,
     progress: 100,
     status: "completed",
-    color: "from-[#5A6A90] to-[#C4CCE0]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
   {
     id: "6",
@@ -89,7 +89,7 @@ const allCourses: Course[] = [
     credits: 2,
     progress: 100,
     status: "completed",
-    color: "from-[#5A6A90] to-[#C4CCE0]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
   {
     id: "7",
@@ -101,7 +101,7 @@ const allCourses: Course[] = [
     status: "not_started",
     dueIn: "Due in 25 days",
     dueDate: "2026-05-05",
-    color: "from-[#3A6870] to-[#8ABCC2]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
   {
     id: "8",
@@ -114,7 +114,7 @@ const allCourses: Course[] = [
     dueIn: "Due in 18 days",
     dueDate: "2026-04-28",
     currentModule: "Post-Exposure Procedures",
-    color: "from-[#7A5430] to-[#A87840]",
+    color: "from-[#C04A40] to-[#E8A098]",
   },
   {
     id: "9",
@@ -124,7 +124,7 @@ const allCourses: Course[] = [
     credits: 2,
     progress: 100,
     status: "completed",
-    color: "from-[#5A6A90] to-[#C4CCE0]",
+    color: "from-[#445A73] to-[#A8BDD4]",
   },
 ];
 

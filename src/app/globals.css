@@ -127,64 +127,83 @@
   }
 }
 
-/* ── Dusty Teal & Stone Design System ── */
+/* ── Steel Slate & Cloud White Design System (v1.1) ── */
 :root {
+  /* 5 input colours: #0A1628 · #F5F8FA · #E7F0F7 · #E1EFFC · #647A93 */
+
   /* Backgrounds */
-  --bg-page:         #F5F4F0;
-  --bg-surface:      #E8EAE4;
-  --bg-raised:       #FDFCFA;
-  --bg-dark:         #142830;
+  --bg-page:         #F5F8FA;
+  --bg-surface:      #E7F0F7;
+  --bg-raised:       #F5F8FA;
+  --bg-highlight:    #E1EFFC;
+  --bg-dark:         #1A3050;
+  --bg-obsidian:     #0A1628;
 
-  /* Dusty Teal */
-  --teal-50:         #EAF3F4;
-  --teal-100:        #C4DDE0;
-  --teal-200:        #8ABCC2;
-  --teal-400:        #3A6870;
-  --teal-600:        #254850;
-  --teal-800:        #142830;
-  --teal-900:        #0A1820;
+  /* Steel Slate scale */
+  --teal-50:         #EEF3F8;
+  --teal-100:        #D4E2EE;
+  --teal-200:        #A8BDD4;
+  --teal-400:        #647A93;
+  --teal-600:        #445A73;
+  --teal-800:        #2A3D52;
+  --teal-900:        #1A2838;
 
-  /* Slate Blue */
-  --slate-50:        #EAF0F4;
-  --slate-100:       #C4CCE0;
-  --slate-200:       #8A9CC4;
-  --slate-400:       #5A6A90;
-  --slate-600:       #3A4868;
-  --slate-800:       #202840;
-  --slate-900:       #101828;
+  /* Sky Fill scale (replaces old Slate Blue) */
+  --slate-50:        #F4F9FF;
+  --slate-100:       #E1EFFC;
+  --slate-200:       #B8D8F8;
+  --slate-400:       #6AAEE8;
+  --slate-600:       #2E7EC0;
+  --slate-800:       #1A5290;
+  --slate-900:       #0E3268;
 
-  /* Warm Amber */
-  --amber-50:        #FAF3EC;
-  --amber-100:       #F0E4D4;
-  --amber-200:       #D8B890;
-  --amber-400:       #A87840;
-  --amber-600:       #7A5430;
+  /* Amber + Red (urgency) */
+  --amber-50:        #FAF0E8;
+  --amber-100:       #F0DCC8;
+  --amber-200:       #D4A860;
+  --amber-400:       #A06830;
+  --amber-600:       #7A4E20;
   --amber-800:       #4A3018;
   --amber-900:       #2E1C0A;
 
-  /* Stone Neutrals */
-  --stone-50:        #F5F4F0;
-  --stone-100:       #E8EAE4;
-  --stone-200:       #CCD4CE;
-  --stone-400:       #8A9290;
-  --stone-600:       #647070;
-  --stone-800:       #3A4040;
-  --stone-900:       #1A2828;
+  /* Mist Neutral scale (replaces old Stone) */
+  --stone-50:        #F5F8FA;
+  --stone-100:       #E7F0F7;
+  --stone-200:       #CCDDE8;
+  --stone-400:       #8AAAC0;
+  --stone-600:       #647A93;
+  --stone-800:       #2A3D52;
+  --stone-900:       #1A2838;
+
+  /* Deep Horizon scale */
+  --deep-50:         #EAF0F6;
+  --deep-100:        #C8D8E8;
+  --deep-200:        #88A8C8;
+  --deep-400:        #3A6080;
+  --deep-600:        #1A3050;
+  --deep-800:        #0E1E30;
+  --deep-900:        #0A1628;
 
   /* Semantic text */
-  --text-primary:    #1A2828;
-  --text-body:       #647070;
-  --text-muted:      #8A9290;
-  --text-link:       #3A6870;
+  --text-primary:    #1A2838;
+  --text-body:       #223548;
+  --text-muted:      #647A93;
+  --text-hint:       #8AAAC0;
+  --text-link:       #2E7EC0;
+  --text-on-dark:    #EAF0F6;
+  --text-on-dark-muted: #88A8C8;
 
   /* Borders */
-  --border-default:  #CCD4CE;
-  --border-strong:   #A8B8B0;
+  --border-default:  #CCDDE8;
+  --border-strong:   #A8BDD4;
+  --border-accent:   #647A93;
 
   /* Buttons */
-  --btn-primary:     #3A6870;
-  --btn-secondary:   #5A6A90;
-  --btn-danger:      #7A5430;
+  --btn-primary:     #0A1628;
+  --btn-primary-hover: #0E1E30;
+  --btn-secondary:   #647A93;
+  --btn-sky:         #2E7EC0;
+  --btn-danger:      #C04A40;
 
   /* Fonts */
   --font-display:    'Instrument Serif', Georgia, serif;

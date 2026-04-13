@@ -29,10 +29,10 @@ const statusConfig: Record<CourseStatus, { label: string; bg: string; text: stri
   },
   completed: {
     label: "COMPLETED",
-    bg: "var(--slate-50)",
-    text: "var(--slate-600)",
-    border: "var(--slate-100)",
-    dot: "var(--slate-400)",
+    bg: "var(--teal-50)",
+    text: "#445A73",
+    border: "var(--teal-100)",
+    dot: "#445A73",
   },
   overdue: {
     label: "OVERDUE",
@@ -243,7 +243,7 @@ export function CourseTimelineCard({
                     fontFamily: "var(--font-body)",
                     fontSize: "var(--text-stat-m)",
                     fontWeight: 700,
-                    color: status === "completed" ? "var(--slate-400)" : "var(--stone-900)",
+                    color: status === "completed" ? "#445A73" : "var(--stone-900)",
                   }}
                 >
                   {credits}
@@ -290,8 +290,8 @@ export function CourseTimelineCard({
               fontSize: "12px",
               letterSpacing: "var(--tracking-wide)",
               textTransform: "uppercase" as const,
-              backgroundColor: status === "completed" ? "var(--slate-400)" : "var(--teal-400)",
-              color: status === "completed" ? "var(--slate-50)" : "var(--teal-50)",
+              backgroundColor: status === "completed" ? "#445A73" : "var(--btn-primary)",
+              color: status === "completed" ? "#EEF3F8" : "var(--teal-50)",
             }}
           >
             {actionLabel}
