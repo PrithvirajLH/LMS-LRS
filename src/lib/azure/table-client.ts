@@ -10,6 +10,7 @@ const TABLE_NAMES = {
   courses: "courses",
   users: "users",
   enrollments: "enrollments",
+  sessions: "sessions",
 } as const;
 
 type TableName = keyof typeof TABLE_NAMES;

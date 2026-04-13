@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
 import { IconSearch, IconChevronDown, IconMail } from "@tabler/icons-react";
 
@@ -18,21 +18,38 @@ interface Learner {
   lastActive: string;
 }
 
-const mockLearners: Learner[] = [
-  { id: "1", name: "Jane Smith", employeeId: "EMP-001", facility: "Sunrise Dallas", department: "Nursing", role: "CNA", coursesAssigned: 7, coursesCompleted: 5, overdue: 1, avgScore: 92, lastActive: "2026-04-12" },
-  { id: "2", name: "Bob Johnson", employeeId: "EMP-002", facility: "Sunrise Dallas", department: "Nursing", role: "RN", coursesAssigned: 6, coursesCompleted: 4, overdue: 0, avgScore: 88, lastActive: "2026-04-10" },
-  { id: "3", name: "Alice Chen", employeeId: "EMP-003", facility: "Sunrise Dallas", department: "Admin", role: "Receptionist", coursesAssigned: 5, coursesCompleted: 5, overdue: 0, avgScore: 95, lastActive: "2026-04-08" },
-  { id: "4", name: "Carlos Rivera", employeeId: "EMP-004", facility: "Sunrise Houston", department: "Housekeeping", role: "Housekeeper", coursesAssigned: 4, coursesCompleted: 2, overdue: 2, avgScore: 78, lastActive: "2026-03-28" },
-  { id: "5", name: "Diana Foster", employeeId: "EMP-005", facility: "Sunrise Houston", department: "Dietary", role: "Dietary Aide", coursesAssigned: 5, coursesCompleted: 3, overdue: 1, avgScore: 85, lastActive: "2026-04-05" },
-  { id: "6", name: "Eric Williams", employeeId: "EMP-006", facility: "Sunrise Dallas", department: "Maintenance", role: "Maintenance Tech", coursesAssigned: 3, coursesCompleted: 3, overdue: 0, avgScore: 90, lastActive: "2026-04-11" },
-  { id: "7", name: "Fatima Hassan", employeeId: "EMP-007", facility: "Sunrise Austin", department: "Nursing", role: "LVN", coursesAssigned: 7, coursesCompleted: 6, overdue: 0, avgScore: 94, lastActive: "2026-04-13" },
-  { id: "8", name: "Greg Martinez", employeeId: "EMP-008", facility: "Sunrise Austin", department: "Activities", role: "Activities Director", coursesAssigned: 5, coursesCompleted: 1, overdue: 3, avgScore: 72, lastActive: "2026-03-15" },
-];
-
 export default function LearnersPage() {
+  const [learners, setLearners] = useState<Learner[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "overdue" | "score" | "active">("name");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/users")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.users) {
+          setLearners(data.users.map((u: { rowKey: string; name: string; employeeId: string; facility: string; department: string; position: string; updatedAt?: string }) => ({
+            id: u.rowKey,
+            name: u.name,
+            employeeId: u.employeeId,
+            facility: u.facility,
+            department: u.department,
+            role: u.position,
+            coursesAssigned: 0,
+            coursesCompleted: 0,
+            overdue: 0,
+            avgScore: 0,
+            lastActive: u.updatedAt || "",
+          })));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const mockLearners = learners;
 
   const filtered = mockLearners
     .filter((l) => {

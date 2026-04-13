@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import {
@@ -24,6 +24,20 @@ export default function LearnLayout({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [userName, setUserName] = useState("User");
+  const [userInitials, setUserInitials] = useState("U");
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.user?.name) {
+          setUserName(data.user.name);
+          setUserInitials(data.user.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase());
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const links = [
     {
