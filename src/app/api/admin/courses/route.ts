@@ -4,6 +4,7 @@ import {
   saveCourseMetadata,
   listCourses,
   updateCourse,
+  deleteCourse,
   getCourselaunchUrl,
   type CourseEntity,
 } from "@/lib/courses/course-storage";
@@ -153,5 +154,46 @@ export async function PATCH(request: NextRequest) {
       { error: true, message: "Failed to update course" },
       { status: 500 }
     );
+  }
+}
+
+// DELETE /api/admin/courses — Delete a course (metadata + blobs + enrollments)
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireAuth(request, ["admin"]);
+    const courseId = request.nextUrl.searchParams.get("courseId");
+
+    if (!courseId) {
+      return NextResponse.json(
+        { error: true, message: "courseId query parameter is required" },
+        { status: 400 }
+      );
+    }
+
+    const result = await deleteCourse(courseId);
+
+    audit({
+      action: "course.delete",
+      actorId: auth.session.userId,
+      actorName: auth.session.userName,
+      actorRole: auth.session.role,
+      targetType: "course",
+      targetId: courseId,
+      summary: `Deleted course ${courseId} (${result.blobsDeleted} blobs, ${result.enrollmentsDeleted} enrollments removed)`,
+      details: result,
+      ip: getClientIp(request),
+    });
+
+    return NextResponse.json({
+      message: "Course deleted successfully",
+      courseId,
+      ...result,
+    });
+  } catch (e) {
+    const authResp = handleAuthError(e);
+    if (authResp) return authResp;
+    const message = e instanceof Error ? e.message : "Failed to delete course";
+    logger.error("DELETE /api/admin/courses failed", { error: e });
+    return NextResponse.json({ error: true, message }, { status: 500 });
   }
 }

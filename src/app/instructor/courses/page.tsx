@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { IconUpload, IconExternalLink, IconEye, IconWorldUp, IconWorldOff } from "@tabler/icons-react";
+import { IconUpload, IconExternalLink, IconEye, IconWorldUp, IconWorldOff, IconTrash } from "@tabler/icons-react";
 
 interface Course {
   rowKey: string;
@@ -38,6 +38,25 @@ export default function ManageCoursesPage() {
   }
 
   useEffect(() => { loadCourses(); }, []);
+
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function handleDelete(courseId: string, title: string) {
+    if (!confirm(`Are you sure you want to delete "${title}"?\n\nThis will permanently remove:\n• All course files from storage\n• All learner enrollments\n\nThis cannot be undone.`)) return;
+    setDeleting(courseId);
+    try {
+      const res = await fetch(`/api/admin/courses?courseId=${encodeURIComponent(courseId)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.error) {
+        alert(data.message);
+      } else {
+        loadCourses();
+      }
+    } catch {
+      alert("Failed to delete course");
+    }
+    setDeleting(null);
+  }
 
   async function toggleStatus(courseId: string, currentStatus: string) {
     const newStatus = currentStatus === "published" ? "draft" : "published";
@@ -195,6 +214,18 @@ export default function ManageCoursesPage() {
                       >
                         <IconExternalLink size={16} style={{ color: "var(--text-muted)" }} />
                       </a>
+                      <button
+                        onClick={() => handleDelete(course.rowKey, course.title)}
+                        disabled={deleting === course.rowKey}
+                        className="rounded-lg p-2 transition-colors duration-150 hover:bg-red-50"
+                        title="Delete course"
+                      >
+                        {deleting === course.rowKey ? (
+                          <div className="w-4 h-4 border-2 border-red-300 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <IconTrash size={16} style={{ color: "var(--amber-600)" }} />
+                        )}
+                      </button>
                     </div>
                   </td>
                 </tr>

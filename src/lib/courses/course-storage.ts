@@ -240,6 +240,55 @@ export async function getAllCoursesMap(): Promise<Map<string, CourseEntity>> {
 }
 
 /**
+ * Delete a course: removes metadata from Table Storage, all blobs from
+ * Blob Storage, and all associated enrollments.
+ */
+export async function deleteCourse(courseId: string): Promise<{ blobsDeleted: number; enrollmentsDeleted: number }> {
+  const table = await getTableClient("courses");
+  const enrollmentTable = await getTableClient("enrollments");
+
+  // 1. Get course metadata to find blobBasePath
+  let course: CourseEntity | null = null;
+  try {
+    course = await table.getEntity<CourseEntity>("course", courseId);
+  } catch (e: unknown) {
+    const err = e as { statusCode?: number };
+    if (err.statusCode === 404) throw new Error("Course not found");
+    throw e;
+  }
+
+  // 2. Delete all blobs under the course's path
+  let blobsDeleted = 0;
+  if (course.blobBasePath) {
+    const container = await getCoursesContainer();
+    const prefix = course.blobBasePath;
+    for await (const blob of container.listBlobsFlat({ prefix })) {
+      await container.deleteBlob(blob.name);
+      blobsDeleted++;
+    }
+  }
+
+  // 3. Delete all enrollments for this course
+  let enrollmentsDeleted = 0;
+  const enrollIter = enrollmentTable.listEntities<{ partitionKey: string; rowKey: string }>({
+    queryOptions: { filter: `RowKey eq '${courseId.replace(/'/g, "''")}'` },
+  });
+  for await (const entity of enrollIter) {
+    await enrollmentTable.deleteEntity(entity.partitionKey!, entity.rowKey!);
+    enrollmentsDeleted++;
+  }
+
+  // 4. Delete course metadata
+  await table.deleteEntity("course", courseId);
+
+  // 5. Invalidate caches
+  courseCache.delete(courseId);
+  allCoursesMapCache = null;
+
+  return { blobsDeleted, enrollmentsDeleted };
+}
+
+/**
  * Update course metadata.
  */
 export async function updateCourse(courseId: string, updates: Partial<CourseEntity>): Promise<void> {
