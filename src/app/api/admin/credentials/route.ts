@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { hash } from "bcryptjs";
 import { getTableClient } from "@/lib/azure/table-client";
+import { audit } from "@/lib/audit";
+import { getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 import type { CredentialEntity } from "@/lib/lrs/types";
 
 // POST /api/admin/credentials — Create a new API credential
@@ -45,6 +48,15 @@ export async function POST(request: NextRequest) {
 
     await table.createEntity(entity);
 
+    audit({
+      action: "credential.create",
+      actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+      targetType: "credential", targetId: apiKey,
+      summary: `Created API credential "${displayName}"`,
+      details: { displayName, scopes },
+      ip: getClientIp(request),
+    });
+
     // Return the key and secret (secret is shown only once)
     return NextResponse.json(
       {
@@ -58,7 +70,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (e) {
-    console.error("POST /api/admin/credentials error:", e);
+    logger.error("POST /api/admin/credentials failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to create credential" },
       { status: 500 }
@@ -82,9 +94,17 @@ export async function PATCH(request: NextRequest) {
       "Merge"
     );
 
+    audit({
+      action: isActive ? "credential.activate" : "credential.deactivate",
+      actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+      targetType: "credential", targetId: apiKey,
+      summary: `${isActive ? "Activated" : "Deactivated"} API credential ${apiKey}`,
+      ip: getClientIp(request),
+    });
+
     return NextResponse.json({ apiKey, isActive: !!isActive });
   } catch (e) {
-    console.error("PATCH /api/admin/credentials error:", e);
+    logger.error("PATCH /api/admin/credentials failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to update credential" },
       { status: 500 }
@@ -121,7 +141,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ credentials });
   } catch (e) {
-    console.error("GET /api/admin/credentials error:", e);
+    logger.error("GET /api/admin/credentials failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to list credentials" },
       { status: 500 }

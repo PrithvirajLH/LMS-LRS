@@ -12,6 +12,7 @@ const TABLE_NAMES = {
   userLookup: "userLookup",
   enrollments: "enrollments",
   sessions: "sessions",
+  auditLog: "auditLog",
 } as const;
 
 type TableName = keyof typeof TABLE_NAMES;

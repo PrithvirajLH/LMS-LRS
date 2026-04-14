@@ -7,6 +7,9 @@ import {
   getCourselaunchUrl,
   type CourseEntity,
 } from "@/lib/courses/course-storage";
+import { audit } from "@/lib/audit";
+import { getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // POST /api/admin/courses — Save course metadata (after upload)
 export async function POST(request: NextRequest) {
@@ -63,12 +66,21 @@ export async function POST(request: NextRequest) {
     // Generate launch URL
     const launchUrl = getCourselaunchUrl(course.blobBasePath, course.launchFile);
 
+    audit({
+      action: "course.create",
+      actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+      targetType: "course", targetId: courseId,
+      summary: `Created course "${title}"`,
+      details: { courseId, title, category, activityId },
+      ip: getClientIp(request),
+    });
+
     return NextResponse.json({
       ...course,
       launchUrl,
     }, { status: 201 });
   } catch (e) {
-    console.error("POST /api/admin/courses error:", e);
+    logger.error("POST /api/admin/courses failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to save course" },
       { status: 500 }
@@ -91,7 +103,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ courses: withUrls });
   } catch (e) {
-    console.error("GET /api/admin/courses error:", e);
+    logger.error("GET /api/admin/courses failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to list courses" },
       { status: 500 }
@@ -122,9 +134,18 @@ export async function PATCH(request: NextRequest) {
 
     await updateCourse(courseId, updates);
 
+    audit({
+      action: updates.status === "published" ? "course.publish" : "course.update",
+      actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+      targetType: "course", targetId: courseId,
+      summary: updates.status === "published" ? `Published course ${courseId}` : `Updated course ${courseId}`,
+      details: updates,
+      ip: getClientIp(request),
+    });
+
     return NextResponse.json({ courseId, ...updates });
   } catch (e) {
-    console.error("PATCH /api/admin/courses error:", e);
+    logger.error("PATCH /api/admin/courses failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to update course" },
       { status: 500 }

@@ -2,6 +2,9 @@ import { requireAuth, isAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, listUsers } from "@/lib/users/user-storage";
 import { adminUpdateUser } from "@/lib/auth/session";
+import { audit } from "@/lib/audit";
+import { getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // POST /api/admin/users — Create a new user
 export async function POST(request: NextRequest) {
@@ -25,9 +28,18 @@ export async function POST(request: NextRequest) {
       tags: "",
     });
 
+    audit({
+      action: "user.create",
+      actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+      targetType: "user", targetId: user.rowKey,
+      summary: `Created user ${name} (${email})`,
+      details: { name, email, employeeId, facility, role: "learner" },
+      ip: getClientIp(request),
+    });
+
     return NextResponse.json(user, { status: 201 });
   } catch (e) {
-    console.error("POST /api/admin/users error:", e);
+    logger.error("POST /api/admin/users failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to create user" }, { status: 500 });
   }
 }
@@ -40,7 +52,7 @@ export async function GET(request: NextRequest) {
     const users = await listUsers(facility);
     return NextResponse.json({ users });
   } catch (e) {
-    console.error("GET /api/admin/users error:", e);
+    logger.error("GET /api/admin/users failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to list users" }, { status: 500 });
   }
 }
@@ -61,9 +73,18 @@ export async function PATCH(request: NextRequest) {
     const result = await adminUpdateUser(userId, updates);
     if ("error" in result) return NextResponse.json({ error: true, message: result.error }, { status: 404 });
 
+    audit({
+      action: role ? "user.role_change" : "user.status_change",
+      actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+      targetType: "user", targetId: userId,
+      summary: `Updated user ${userId}: ${Object.entries(updates).map(([k, v]) => `${k}=${v}`).join(", ")}`,
+      details: updates,
+      ip: getClientIp(request),
+    });
+
     return NextResponse.json({ userId, ...updates });
   } catch (e) {
-    console.error("PATCH /api/admin/users error:", e);
+    logger.error("PATCH /api/admin/users failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to update user" }, { status: 500 });
   }
 }

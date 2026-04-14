@@ -7,6 +7,9 @@ import {
   getAllEnrollments,
   markEnrollmentCompleted,
 } from "@/lib/users/user-storage";
+import { audit } from "@/lib/audit";
+import { getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 // POST /api/admin/enrollments — Enroll user(s) in a course
 export async function POST(request: NextRequest) {
@@ -23,6 +26,16 @@ export async function POST(request: NextRequest) {
         assignedDate: body.assignedDate || new Date().toISOString().slice(0, 10),
         dueDate: body.dueDate,
       });
+
+      audit({
+        action: "enrollment.bulk_create",
+        actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+        targetType: "course", targetId: body.courseId,
+        summary: `Bulk enrolled ${count} users in ${body.courseTitle || body.courseId}`,
+        details: { userIds: body.userIds, courseId: body.courseId, dueDate: body.dueDate },
+        ip: getClientIp(request),
+      });
+
       return NextResponse.json({ enrolled: count }, { status: 201 });
     }
 
@@ -40,9 +53,18 @@ export async function POST(request: NextRequest) {
       dueDate: dueDate || "",
     });
 
+    audit({
+      action: "enrollment.create",
+      actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
+      targetType: "enrollment", targetId: `${userId}:${courseId}`,
+      summary: `Enrolled user ${userId} in ${courseTitle || courseId}`,
+      details: { userId, courseId, dueDate },
+      ip: getClientIp(request),
+    });
+
     return NextResponse.json(enrollment, { status: 201 });
   } catch (e) {
-    console.error("POST /api/admin/enrollments error:", e);
+    logger.error("POST /api/admin/enrollments failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to create enrollment" }, { status: 500 });
   }
 }
@@ -61,7 +83,7 @@ export async function GET(request: NextRequest) {
     const enrollments = await getAllEnrollments();
     return NextResponse.json({ enrollments });
   } catch (e) {
-    console.error("GET /api/admin/enrollments error:", e);
+    logger.error("GET /api/admin/enrollments failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to list enrollments" }, { status: 500 });
   }
 }
@@ -87,7 +109,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ userId, courseId, status: "completed" });
   } catch (e) {
-    console.error("PATCH /api/admin/enrollments error:", e);
+    logger.error("PATCH /api/admin/enrollments failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to update enrollment" }, { status: 500 });
   }
 }
