@@ -82,13 +82,15 @@ function CoursePlayer() {
         // Set actor from session
         setActor(data.actor);
 
-        // Set course — prefer SAS URL (browser loads directly from Azure Blob,
-        // no memory/CPU on our server). Falls back to proxy if SAS unavailable.
+        // Set course — use proxy URL (serves through Next.js server).
+        // SAS URLs don't work when public access is disabled on the storage
+        // account because Storyline loads relative assets (CSS/JS) without
+        // the SAS token. The proxy reads via connection string server-side.
         setCourse({
           title: data.title,
           category: data.category,
           activityId: data.activityId,
-          contentPath: data.sasUrl || data.proxyUrl || data.publicUrl,
+          contentPath: data.proxyUrl || data.sasUrl || data.publicUrl,
         });
       })
       .catch(() => {
