@@ -137,17 +137,44 @@ function formatStatement(
   if (format === "exact" || !format) return stmt;
 
   if (format === "ids") {
+    // Build actor with minimum IFI info
+    let idsActor: Record<string, unknown> | undefined;
+    if (stmt.actor) {
+      const a = stmt.actor as Record<string, unknown>;
+      idsActor = { objectType: a.objectType || "Agent" };
+      if (a.mbox) idsActor.mbox = a.mbox;
+      else if (a.mbox_sha1sum) idsActor.mbox_sha1sum = a.mbox_sha1sum;
+      else if (a.openid) idsActor.openid = a.openid;
+      else if (a.account) idsActor.account = a.account;
+      // For anonymous groups, include member with minimum IFI
+      if (a.objectType === "Group" && a.member) {
+        idsActor.member = (a.member as Record<string, unknown>[]).map((m) => {
+          const minMember: Record<string, unknown> = { objectType: m.objectType || "Agent" };
+          if (m.mbox) minMember.mbox = m.mbox;
+          else if (m.mbox_sha1sum) minMember.mbox_sha1sum = m.mbox_sha1sum;
+          else if (m.openid) minMember.openid = m.openid;
+          else if (m.account) minMember.account = m.account;
+          return minMember;
+        });
+      }
+    }
+
+    // Build object with minimum info
+    let idsObject: Record<string, unknown> | undefined;
+    if (stmt.object) {
+      const objType = (stmt.object as { objectType?: string }).objectType || "Activity";
+      idsObject = { objectType: objType, id: (stmt.object as { id?: string }).id };
+    }
+
     return {
       id: stmt.id,
       timestamp: stmt.timestamp,
       stored: stmt.stored,
       authority: stmt.authority,
       version: stmt.version,
-      verb: { id: stmt.verb.id },
-      object: {
-        objectType: (stmt.object as { objectType?: string }).objectType || "Activity",
-        id: (stmt.object as { id?: string }).id,
-      },
+      actor: idsActor,
+      verb: { id: stmt.verb?.id },
+      object: idsObject,
     };
   }
 
@@ -271,15 +298,19 @@ export async function storeStatements(
     validateStatement(incoming[i], incoming.length > 1 ? i : undefined);
   }
 
+  // Use a base time and increment by 1ms per statement in a batch to ensure
+  // unique `stored` timestamps — required for since/until query correctness.
+  const batchBaseTime = Date.now();
+
   for (let i = 0; i < incoming.length; i++) {
     let stmt = incoming[i];
 
     // Normalize (e.g., wrap single contextActivities objects into arrays)
     stmt = normalizeStatement(stmt);
 
-    // Assign server fields
+    // Assign server fields — each statement in a batch gets a unique stored time
     const statementId = stmt.id || uuidv4();
-    const now = new Date();
+    const now = new Date(batchBaseTime + i);
     const stored = now.toISOString();
     const timestamp = stmt.timestamp || stored;
 

@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { uploadBlob, downloadBlob, blobExists } from "@/lib/azure/blob-client";
+import { uploadBlob, downloadBlobBuffer, blobExists } from "@/lib/azure/blob-client";
 
 export interface ParsedAttachment {
   contentType: string;
@@ -111,7 +111,7 @@ export async function storeAttachment(attachment: ParsedAttachment): Promise<voi
   await uploadBlob(
     "attachments",
     attachment.hash,
-    attachment.content.toString("binary"),
+    attachment.content,
     attachment.contentType
   );
 }
@@ -154,21 +154,22 @@ export async function buildMultipartResponse(
   const parts: Buffer[] = [];
 
   // First part: statement JSON
+  const jsonBody = JSON.stringify(statementsResult);
   const jsonPart = Buffer.from(
-    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(statementsResult)}`
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${jsonBody}`
   );
   parts.push(jsonPart);
 
-  // Attachment parts
+  // Attachment parts — use Buffer download to preserve binary content
   for (const hash of attachmentHashes) {
     const exists = await blobExists("attachments", hash);
     if (!exists) continue;
 
-    const content = await downloadBlob("attachments", hash);
-    const part = Buffer.from(
-      `\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\nX-Experience-API-Hash: ${hash}\r\n\r\n${content}`
+    const contentBuf = await downloadBlobBuffer("attachments", hash);
+    const headerBuf = Buffer.from(
+      `\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: binary\r\nX-Experience-API-Hash: ${hash}\r\n\r\n`
     );
-    parts.push(part);
+    parts.push(Buffer.concat([headerBuf, contentBuf]));
   }
 
   // Closing boundary

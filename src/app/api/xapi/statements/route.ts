@@ -105,11 +105,7 @@ export async function PUT(request: NextRequest) {
     const auth = await authenticateRequest(request.headers.get("Authorization"));
     if (!auth.authenticated) return xapiError(auth.message, auth.status);
 
-    const statementId = request.nextUrl.searchParams.get("statementId");
-    if (!statementId) {
-      return xapiError("statementId query parameter is required for PUT", 400);
-    }
-
+    let statementId = request.nextUrl.searchParams.get("statementId");
     let body: unknown;
     const contentType = request.headers.get("Content-Type") || "";
     try {
@@ -118,9 +114,13 @@ export async function PUT(request: NextRequest) {
         const formData = await request.formData();
         // xAPI alternate request syntax allows: content, Authorization, Content-Type,
         // X-Experience-API-Version, method, plus all query parameters as form fields.
-        // We only extract "content" and ignore the rest — no strict rejection.
+        // Query params may also arrive as form fields in alternate request syntax.
         const content = formData.get("content") as string;
         body = content ? JSON.parse(content) : null;
+        // statementId may be a form field in alternate request syntax
+        if (!statementId) {
+          statementId = (formData.get("statementId") as string) || null;
+        }
       } else {
         body = await request.json();
       }
@@ -128,11 +128,19 @@ export async function PUT(request: NextRequest) {
       return xapiError("Invalid JSON in request body", 400);
     }
 
-    const stmt = body as XAPIStatement;
+    if (!statementId) {
+      return xapiError("statementId query parameter is required for PUT", 400);
+    }
+
+    if (!body || typeof body !== "object") {
+      return xapiError("Request body must contain a valid statement object", 400);
+    }
+
     if (Array.isArray(body)) {
       return xapiError("PUT accepts a single statement, not an array", 400);
     }
 
+    const stmt = body as XAPIStatement;
     // Set the statement ID from the query parameter
     stmt.id = statementId;
 

@@ -74,61 +74,72 @@ export async function putDocument(params: {
   ifMatch?: string;
   ifNoneMatch?: string;
 }): Promise<{ etag: string; status: number; error?: string }> {
-  const { partitionKey, rowKey, blobPath } = buildDocKeys(params);
-  const table = await getTableClient("documents");
-
-  const existing = await getDocumentMeta(partitionKey, rowKey);
-
-  if (params.ifNoneMatch === "*" && existing) {
-    return { etag: "", status: 412, error: "Document already exists (If-None-Match: *)" };
-  }
-
-  // Strip surrounding quotes from If-Match value (clients send "etag_value")
-  const ifMatchValue = params.ifMatch?.replace(/^"|"$/g, "");
-
-  if (ifMatchValue && existing && existing.docEtag !== ifMatchValue) {
-    return { etag: "", status: 412, error: "ETag mismatch — document was modified by another client (Precondition Failed)" };
-  }
-
-  // Concurrency enforcement: if document already exists and no concurrency headers
-  // are provided, return 412 per xAPI spec. State API is exempt for Storyline compat.
-  if (existing && !params.ifMatch && !params.ifNoneMatch && params.docType !== "state") {
-    return { etag: "", status: 412, error: "Precondition Failed — existing document requires If-Match header" };
-  }
-
-  const newEtag = generateETag(params.content);
-  const now = new Date().toISOString();
-
-  // Step 1: Write blob
-  await uploadBlob("documents", blobPath, params.content, params.contentType);
-
-  // Step 2: Write table metadata — compensate on failure
-  const entity: DocumentMeta = {
-    partitionKey,
-    rowKey,
-    contentType: params.contentType,
-    blobPath,
-    docEtag: newEtag,
-    updatedAt: now,
-  };
-
   try {
-    if (existing) {
-      await table.updateEntity(entity, "Replace");
-    } else {
-      await table.createEntity(entity);
+    const { partitionKey, rowKey, blobPath } = buildDocKeys(params);
+    const table = await getTableClient("documents");
+
+    const existing = await getDocumentMeta(partitionKey, rowKey);
+
+    // If-None-Match: * means "only store if no document exists"
+    // Handle both bare * and quoted "*" forms
+    const ifNoneMatchValue = params.ifNoneMatch?.replace(/^"|"$/g, "").trim();
+    if (ifNoneMatchValue === "*" && existing) {
+      return { etag: "", status: 412, error: "Document already exists (If-None-Match: *)" };
     }
-  } catch (err) {
-    // Compensation: table write failed — delete the orphaned blob
-    logger.error("Document table write failed, compensating by deleting blob", {
+
+    // Strip surrounding quotes from If-Match value (clients send "etag_value")
+    const ifMatchValue = params.ifMatch?.replace(/^"|"$/g, "");
+
+    if (ifMatchValue && existing && existing.docEtag !== ifMatchValue) {
+      return { etag: "", status: 412, error: "ETag mismatch — document was modified by another client (Precondition Failed)" };
+    }
+
+    // Concurrency enforcement: if document already exists and no concurrency headers
+    // are provided, return 412 per xAPI spec. State API is exempt for Storyline compat.
+    if (existing && !params.ifMatch && !ifNoneMatchValue && params.docType !== "state") {
+      return { etag: "", status: 412, error: "Precondition Failed — existing document requires If-Match header" };
+    }
+
+    const newEtag = generateETag(params.content);
+    const now = new Date().toISOString();
+
+    // Step 1: Write blob
+    await uploadBlob("documents", blobPath, params.content, params.contentType);
+
+    // Step 2: Write table metadata — compensate on failure
+    const entity: DocumentMeta = {
+      partitionKey,
+      rowKey,
+      contentType: params.contentType,
       blobPath,
+      docEtag: newEtag,
+      updatedAt: now,
+    };
+
+    try {
+      if (existing) {
+        await table.updateEntity(entity, "Replace");
+      } else {
+        await table.createEntity(entity);
+      }
+    } catch (err) {
+      // Compensation: table write failed — delete the orphaned blob
+      logger.error("Document table write failed, compensating by deleting blob", {
+        blobPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await deleteBlob("documents", blobPath).catch(() => {});
+      return { etag: "", status: 500, error: "Failed to persist document metadata" };
+    }
+
+    return { etag: newEtag, status: 204 };
+  } catch (err) {
+    logger.error("putDocument unexpected error", {
+      docType: params.docType,
       error: err instanceof Error ? err.message : String(err),
     });
-    await deleteBlob("documents", blobPath).catch(() => {});
-    throw err;
+    return { etag: "", status: 500, error: "Internal document storage error" };
   }
-
-  return { etag: newEtag, status: 204 };
 }
 
 // ── Post document (merge if both JSON) ──
@@ -142,105 +153,108 @@ export async function postDocument(params: {
   content: string;
   contentType: string;
 }): Promise<{ etag: string; status: number; error?: string }> {
-  const { partitionKey, rowKey, blobPath } = buildDocKeys(params);
-  const table = await getTableClient("documents");
-
-  const existing = await getDocumentMeta(partitionKey, rowKey);
-
-  if (!existing) {
-    const newEtag = generateETag(params.content);
-    await uploadBlob("documents", blobPath, params.content, params.contentType);
-    try {
-      await table.createEntity({
-        partitionKey,
-        rowKey,
-        contentType: params.contentType,
-        blobPath,
-        docEtag: newEtag,
-        updatedAt: new Date().toISOString(),
-      } as DocumentMeta);
-    } catch (err) {
-      logger.error("Document table create failed, compensating", { blobPath, error: err instanceof Error ? err.message : String(err) });
-      await deleteBlob("documents", blobPath).catch(() => {});
-      throw err;
-    }
-    return { etag: newEtag, status: 204 };
-  }
-
-  const isNewJson = params.contentType.includes("application/json");
-  const isExistingJson = existing.contentType.includes("application/json");
-
-  let finalContent: string;
-  let finalContentType: string;
-
-  if (isNewJson && isExistingJson) {
-    let existingContent: string;
-    try {
-      existingContent = await downloadBlob("documents", existing.blobPath);
-    } catch (blobErr) {
-      logger.error("Document merge: failed to read existing blob", {
-        blobPath: existing.blobPath,
-        error: blobErr instanceof Error ? blobErr.message : String(blobErr),
-      });
-      return { etag: "", status: 400, error: "Cannot merge — failed to read existing document" };
-    }
-
-    let existingObj: Record<string, unknown>;
-    let newObj: Record<string, unknown>;
-
-    try {
-      existingObj = JSON.parse(existingContent);
-    } catch {
-      return { etag: "", status: 400, error: "Cannot merge — existing document is not valid JSON" };
-    }
-
-    try {
-      newObj = JSON.parse(params.content);
-    } catch {
-      return { etag: "", status: 400, error: "Cannot merge — new document is not valid JSON" };
-    }
-
-    if (typeof existingObj !== "object" || typeof newObj !== "object" ||
-        Array.isArray(existingObj) || Array.isArray(newObj)) {
-      finalContent = params.content;
-      finalContentType = params.contentType;
-    } else {
-      const merged = { ...existingObj, ...newObj };
-      finalContent = JSON.stringify(merged);
-      finalContentType = "application/json";
-    }
-  } else {
-    // POST merge requires both documents to be JSON. If either is not JSON, return 400.
-    return { etag: "", status: 400, error: "Cannot merge — both existing and incoming documents must have Content-Type of application/json for POST merge" };
-  }
-
-  const newEtag = generateETag(finalContent);
-  // Save previous blob path for compensation
-  const previousBlobPath = existing.blobPath;
-  await uploadBlob("documents", blobPath, finalContent, finalContentType);
   try {
-    await table.updateEntity(
-      {
-        partitionKey,
-        rowKey,
-        contentType: finalContentType,
-        docEtag: newEtag,
-        updatedAt: new Date().toISOString(),
-      },
-      "Merge"
-    );
+    const { partitionKey, rowKey, blobPath } = buildDocKeys(params);
+    const table = await getTableClient("documents");
+
+    const existing = await getDocumentMeta(partitionKey, rowKey);
+
+    if (!existing) {
+      const newEtag = generateETag(params.content);
+      await uploadBlob("documents", blobPath, params.content, params.contentType);
+      try {
+        await table.createEntity({
+          partitionKey,
+          rowKey,
+          contentType: params.contentType,
+          blobPath,
+          docEtag: newEtag,
+          updatedAt: new Date().toISOString(),
+        } as DocumentMeta);
+      } catch (err) {
+        logger.error("Document table create failed, compensating", { blobPath, error: err instanceof Error ? err.message : String(err) });
+        await deleteBlob("documents", blobPath).catch(() => {});
+        return { etag: "", status: 500, error: "Failed to persist document metadata" };
+      }
+      return { etag: newEtag, status: 204 };
+    }
+
+    const isNewJson = params.contentType.includes("application/json");
+    const isExistingJson = existing.contentType.includes("application/json");
+
+    let finalContent: string;
+    let finalContentType: string;
+
+    if (isNewJson && isExistingJson) {
+      let existingContent: string;
+      try {
+        existingContent = await downloadBlob("documents", existing.blobPath);
+      } catch (blobErr) {
+        logger.error("Document merge: failed to read existing blob", {
+          blobPath: existing.blobPath,
+          error: blobErr instanceof Error ? blobErr.message : String(blobErr),
+        });
+        return { etag: "", status: 400, error: "Cannot merge — failed to read existing document" };
+      }
+
+      let existingObj: Record<string, unknown>;
+      let newObj: Record<string, unknown>;
+
+      try {
+        existingObj = JSON.parse(existingContent);
+      } catch {
+        return { etag: "", status: 400, error: "Cannot merge — existing document is not valid JSON" };
+      }
+
+      try {
+        newObj = JSON.parse(params.content);
+      } catch {
+        return { etag: "", status: 400, error: "Cannot merge — new document is not valid JSON" };
+      }
+
+      if (typeof existingObj !== "object" || typeof newObj !== "object" ||
+          Array.isArray(existingObj) || Array.isArray(newObj)) {
+        finalContent = params.content;
+        finalContentType = params.contentType;
+      } else {
+        const merged = { ...existingObj, ...newObj };
+        finalContent = JSON.stringify(merged);
+        finalContentType = "application/json";
+      }
+    } else {
+      // POST merge requires both documents to be JSON. If either is not JSON, return 400.
+      return { etag: "", status: 400, error: "Cannot merge — both existing and incoming documents must have Content-Type of application/json for POST merge" };
+    }
+
+    const newEtag = generateETag(finalContent);
+    await uploadBlob("documents", blobPath, finalContent, finalContentType);
+    try {
+      await table.updateEntity(
+        {
+          partitionKey,
+          rowKey,
+          contentType: finalContentType,
+          docEtag: newEtag,
+          updatedAt: new Date().toISOString(),
+        },
+        "Merge"
+      );
+    } catch (err) {
+      logger.error("Document merge table update failed, compensating", {
+        blobPath,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { etag: "", status: 500, error: "Failed to persist merged document metadata" };
+    }
+
+    return { etag: newEtag, status: 204 };
   } catch (err) {
-    // Compensation: restore previous blob state
-    logger.error("Document merge table update failed, compensating", {
-      blobPath,
+    logger.error("postDocument unexpected error", {
+      docType: params.docType,
       error: err instanceof Error ? err.message : String(err),
     });
-    // The blob was overwritten — we can't restore the old content,
-    // but we log it so the inconsistency is visible.
-    throw err;
+    return { etag: "", status: 500, error: "Internal document storage error" };
   }
-
-  return { etag: newEtag, status: 204 };
 }
 
 // ── Get a single document ──

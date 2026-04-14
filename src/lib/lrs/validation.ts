@@ -509,7 +509,8 @@ function validateSubStatement(sub: unknown, path: string): void {
 
   // Optional: context (full validation)
   if (s.context !== undefined) {
-    validateContext(s.context, `${path}.context`);
+    const subObjType = (s.object as Record<string, unknown>).objectType as string || "Activity";
+    validateContext(s.context, `${path}.context`, subObjType);
   }
 
   // Optional: timestamp
@@ -686,7 +687,9 @@ function validateContextActivities(
 }
 
 // ── Validate Context ──
-function validateContext(ctx: unknown, path: string): void {
+// objectType: the objectType of the Statement's Object (default "Activity").
+// Per xAPI 4.1.6, "revision" and "platform" MUST only be used when object is Activity.
+function validateContext(ctx: unknown, path: string, objectType: string = "Activity"): void {
   assertIsObject(ctx, path);
   const c = ctx as Record<string, unknown>;
 
@@ -714,9 +717,19 @@ function validateContext(ctx: unknown, path: string): void {
     );
   }
   if (c.revision !== undefined) {
+    if (objectType !== "Activity") {
+      throw new ValidationError(
+        `${path}.revision: revision is not allowed when the Statement's Object is a ${objectType}`
+      );
+    }
     assertIsString(c.revision, `${path}.revision`);
   }
   if (c.platform !== undefined) {
+    if (objectType !== "Activity") {
+      throw new ValidationError(
+        `${path}.platform: platform is not allowed when the Statement's Object is a ${objectType}`
+      );
+    }
     assertIsString(c.platform, `${path}.platform`);
   }
   if (c.language !== undefined) {
@@ -891,7 +904,8 @@ export function validateStatement(stmt: unknown, index?: number): void {
 
   // Optional: context
   if (s.context !== undefined) {
-    validateContext(s.context, `${prefix}.context`);
+    const objType = (s.object as Record<string, unknown>).objectType as string || "Activity";
+    validateContext(s.context, `${prefix}.context`, objType);
   }
 
   // Optional: authority

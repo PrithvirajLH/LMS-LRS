@@ -47,12 +47,13 @@ export async function getContainerClient(
 export async function uploadBlob(
   container: ContainerName,
   blobName: string,
-  content: string,
+  content: string | Buffer,
   contentType = "application/json"
 ): Promise<void> {
   const client = await getContainerClient(container);
   const blockBlob = client.getBlockBlobClient(blobName);
-  await blockBlob.upload(content, Buffer.byteLength(content), {
+  const length = Buffer.isBuffer(content) ? content.length : Buffer.byteLength(content);
+  await blockBlob.upload(content, length, {
     blobHTTPHeaders: { blobContentType: contentType },
   });
 }
@@ -69,6 +70,20 @@ export async function downloadBlob(
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf-8");
+}
+
+export async function downloadBlobBuffer(
+  container: ContainerName,
+  blobName: string
+): Promise<Buffer> {
+  const client = await getContainerClient(container);
+  const blockBlob = client.getBlockBlobClient(blobName);
+  const response = await blockBlob.download(0);
+  const chunks: Buffer[] = [];
+  for await (const chunk of response.readableStreamBody as NodeJS.ReadableStream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
 }
 
 export async function blobExists(
