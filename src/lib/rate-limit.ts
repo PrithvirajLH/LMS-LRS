@@ -93,19 +93,24 @@ class RateLimiter {
  * the same building.
  */
 export const authLimiter = new RateLimiter({
-  maxRequests: 20,
+  maxRequests: parseInt(process.env.AUTH_RATE_LIMIT || "20", 10),
   windowSeconds: 60,
 });
 
 /** Password reset — 3 attempts per 60s per IP */
 export const resetLimiter = new RateLimiter({
-  maxRequests: 3,
+  maxRequests: parseInt(process.env.RESET_RATE_LIMIT || "3", 10),
   windowSeconds: 60,
 });
 
-/** xAPI statement ingestion — 300 per 60s per credential key */
+/**
+ * xAPI statement ingestion — per credential key.
+ * Default: 300/min. Set XAPI_RATE_LIMIT env var to override
+ * (e.g. "0" to disable for conformance testing).
+ */
+const xapiLimit = parseInt(process.env.XAPI_RATE_LIMIT || "300", 10);
 export const xapiLimiter = new RateLimiter({
-  maxRequests: 300,
+  maxRequests: xapiLimit || 999999, // 0 = effectively disabled
   windowSeconds: 60,
 });
 

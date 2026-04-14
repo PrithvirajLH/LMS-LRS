@@ -100,9 +100,11 @@ export async function GET(request: NextRequest) {
 
     // Without profileId — list all profileIds
     if (!profileId) {
+      const since = request.nextUrl.searchParams.get("since") || undefined;
       const ids = await listDocumentIds({
         docType: "activity_profile",
         activityId,
+        since,
       });
       return xapiResponse(ids, 200);
     }

@@ -139,11 +139,13 @@ export async function GET(request: NextRequest) {
 
     // Without stateId — list all stateIds
     if (!stateId) {
+      const since = url.searchParams.get("since") || undefined;
       const ids = await listDocumentIds({
         docType: "state",
         activityId,
         agent,
         registration,
+        since,
       });
       return xapiResponse(ids, 200);
     }

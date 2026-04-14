@@ -256,11 +256,15 @@ export async function getDocument(params: {
 }
 
 // ── List document IDs ──
+// Supports optional `since` parameter per xAPI spec:
+// "If specified, only IDs of documents stored since the specified Timestamp
+//  (exclusive) are returned."
 export async function listDocumentIds(params: {
   docType: DocType;
   activityId?: string;
   agent?: Actor;
   registration?: string;
+  since?: string;
 }): Promise<string[]> {
   const { partitionKey } = buildDocKeys({
     ...params,
@@ -270,7 +274,12 @@ export async function listDocumentIds(params: {
   const table = await getTableClient("documents");
 
   const ids: string[] = [];
-  const filter = `PartitionKey eq '${partitionKey.replace(/'/g, "''")}'`;
+  let filter = `PartitionKey eq '${partitionKey.replace(/'/g, "''")}'`;
+
+  // xAPI spec: only return documents updated after the `since` timestamp
+  if (params.since) {
+    filter += ` and updatedAt gt '${params.since.replace(/'/g, "''")}'`;
+  }
 
   const iterator = table.listEntities<DocumentMeta>({
     queryOptions: { filter },

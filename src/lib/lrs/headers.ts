@@ -17,6 +17,10 @@ export function validateVersionHeader(
 
 export function addXAPIHeaders(headers: Headers): void {
   headers.set("X-Experience-API-Version", LRS_VERSION);
+  // Consistent-Through: required by spec on statement responses.
+  // Indicates the server's consistency point — since we write synchronously
+  // (or near-real-time via queue), the current timestamp is accurate.
+  headers.set("X-Experience-API-Consistent-Through", new Date().toISOString());
 }
 
 export function xapiResponse(
