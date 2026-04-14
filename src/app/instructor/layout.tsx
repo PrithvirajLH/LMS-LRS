@@ -11,6 +11,7 @@ import {
   IconReportAnalytics,
   IconUsers,
   IconArrowLeft,
+  IconShieldCog,
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ export default function InstructorLayout({ children }: { children: React.ReactNo
   ];
 
   const bottomLinks = [
+    { label: "Admin Console", href: "/admin", icon: <IconShieldCog className={ICON_CLASS} style={ICON_STYLE} stroke={1.5} /> },
     { label: "Back to LMS", href: "/learn", icon: <IconArrowLeft className={ICON_CLASS} style={ICON_STYLE} stroke={1.5} /> },
   ];
 
