@@ -10,6 +10,7 @@ import {
   generateAccountSASQueryParameters,
 } from "@azure/storage-blob";
 import { getTableClient } from "@/lib/azure/table-client";
+import { courseCache } from "@/lib/cache";
 import { parseTinCanXml, type TinCanManifest } from "./tincan-parser";
 
 const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING!;
@@ -174,17 +175,45 @@ export async function listCourses(status?: string): Promise<CourseEntity[]> {
 }
 
 /**
- * Get a single course by ID.
+ * Get a single course by ID — with cache.
  */
 export async function getCourse(courseId: string): Promise<CourseEntity | null> {
+  const cached = courseCache.get(courseId);
+  if (cached) return cached as unknown as CourseEntity;
+
   const table = await getTableClient("courses");
   try {
-    return await table.getEntity<CourseEntity>("course", courseId);
+    const entity = await table.getEntity<CourseEntity>("course", courseId);
+    courseCache.set(courseId, entity as unknown as Record<string, unknown>);
+    return entity;
   } catch (e: unknown) {
     const err = e as { statusCode?: number };
     if (err.statusCode === 404) return null;
     throw e;
   }
+}
+
+/**
+ * Load ALL courses into a Map — single table scan instead of N point reads.
+ * Cached for 5 minutes. Used by dashboard to avoid N+1 queries.
+ */
+const ALL_COURSES_CACHE_KEY = "__all_courses__";
+let allCoursesMapCache: { map: Map<string, CourseEntity>; expiresAt: number } | null = null;
+
+export async function getAllCoursesMap(): Promise<Map<string, CourseEntity>> {
+  if (allCoursesMapCache && Date.now() < allCoursesMapCache.expiresAt) {
+    return allCoursesMapCache.map;
+  }
+
+  const courses = await listCourses();
+  const map = new Map<string, CourseEntity>();
+  for (const c of courses) {
+    map.set(c.rowKey, c);
+    courseCache.set(c.rowKey, c as unknown as Record<string, unknown>);
+  }
+
+  allCoursesMapCache = { map, expiresAt: Date.now() + 5 * 60 * 1000 }; // 5 min
+  return map;
 }
 
 /**

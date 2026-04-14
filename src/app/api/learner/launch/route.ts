@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (e) {
-    console.error("GET /api/learner/launch error:", e);
+    const { logger } = await import("@/lib/logger");
+    logger.error("GET /api/learner/launch failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to get launch URL" }, { status: 500 });
   }
 }

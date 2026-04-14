@@ -82,12 +82,13 @@ function CoursePlayer() {
         // Set actor from session
         setActor(data.actor);
 
-        // Set course — prefer proxy URL (no public blob access needed)
+        // Set course — prefer SAS URL (browser loads directly from Azure Blob,
+        // no memory/CPU on our server). Falls back to proxy if SAS unavailable.
         setCourse({
           title: data.title,
           category: data.category,
           activityId: data.activityId,
-          contentPath: data.proxyUrl || data.publicUrl,
+          contentPath: data.sasUrl || data.proxyUrl || data.publicUrl,
         });
       })
       .catch(() => {

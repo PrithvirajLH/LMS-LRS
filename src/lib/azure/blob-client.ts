@@ -79,3 +79,12 @@ export async function blobExists(
   const blockBlob = client.getBlockBlobClient(blobName);
   return blockBlob.exists();
 }
+
+export async function deleteBlob(
+  container: ContainerName,
+  blobName: string
+): Promise<void> {
+  const client = await getContainerClient(container);
+  const blockBlob = client.getBlockBlobClient(blobName);
+  await blockBlob.deleteIfExists();
+}

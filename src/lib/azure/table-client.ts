@@ -9,6 +9,7 @@ const TABLE_NAMES = {
   documents: "documents",
   courses: "courses",
   users: "users",
+  userLookup: "userLookup",
   enrollments: "enrollments",
   sessions: "sessions",
 } as const;

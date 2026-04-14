@@ -1,14 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
-  "Access-Control-Allow-Headers":
-    "Authorization, Content-Type, X-Experience-API-Version, If-Match, If-None-Match, Accept-Language",
-  "Access-Control-Expose-Headers":
-    "ETag, Last-Modified, X-Experience-API-Version, X-Experience-API-Consistent-Through",
-  "Access-Control-Max-Age": "86400",
-};
+// ── CORS ──────────────────────────────────────────────────────────────
+// Allowed origins: your own domain + any xAPI client origins.
+// Set ALLOWED_ORIGINS in .env.local as a comma-separated list,
+// e.g. "https://lms.example.com,https://storyline-player.example.com"
+// Falls back to same-origin only in production, permissive in dev.
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : [];
+const IS_DEV = process.env.NODE_ENV !== "production";
+
+function getAllowedOrigin(requestOrigin: string | null): string {
+  // Dev mode: allow everything (local testing, Storyline preview, etc.)
+  if (IS_DEV) return requestOrigin || "*";
+  // Production: check against allowlist
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  // xAPI spec requires CORS for cross-origin Storyline/LTI launches
+  // If no origin header (server-to-server), allow
+  if (!requestOrigin) return "";
+  // Deny unknown origins
+  return "";
+}
+
+function buildCorsHeaders(requestOrigin: string | null) {
+  const origin = getAllowedOrigin(requestOrigin);
+  return {
+    ...(origin ? { "Access-Control-Allow-Origin": origin } : {}),
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+    "Access-Control-Allow-Headers":
+      "Authorization, Content-Type, X-Experience-API-Version, If-Match, If-None-Match, Accept-Language",
+    "Access-Control-Expose-Headers":
+      "ETag, Last-Modified, X-Experience-API-Version, X-Experience-API-Consistent-Through",
+    "Access-Control-Max-Age": "86400",
+    ...(origin && origin !== "*"
+      ? { Vary: "Origin" }
+      : {}),
+  };
+}
 
 // Routes that require authentication
 const PROTECTED_ROUTES = ["/learn", "/instructor", "/admin", "/play"];
@@ -19,8 +49,11 @@ export function middleware(request: NextRequest) {
 
   // ── xAPI CORS handling ──
   if (pathname.startsWith("/api/xapi")) {
+    const origin = request.headers.get("origin");
+    const corsHeaders = buildCorsHeaders(origin);
+
     if (request.method === "OPTIONS") {
-      return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+      return new NextResponse(null, { status: 204, headers: corsHeaders });
     }
 
     // Alternate request syntax
@@ -33,7 +66,7 @@ export function middleware(request: NextRequest) {
         const headers = new Headers(request.headers);
         headers.set("X-HTTP-Method-Override", override);
         const response = NextResponse.rewrite(url, { request: { headers } });
-        for (const [key, value] of Object.entries(CORS_HEADERS)) {
+        for (const [key, value] of Object.entries(corsHeaders)) {
           response.headers.set(key, value);
         }
         return response;
@@ -41,7 +74,7 @@ export function middleware(request: NextRequest) {
     }
 
     const response = NextResponse.next();
-    for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    for (const [key, value] of Object.entries(corsHeaders)) {
       response.headers.set(key, value);
     }
     return response;

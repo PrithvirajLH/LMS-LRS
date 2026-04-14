@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getUserEnrollments, markEnrollmentCompleted } from "@/lib/users/user-storage";
-import { getCourse, getCourselaunchUrl } from "@/lib/courses/course-storage";
+import { getAllCoursesMap, getCourselaunchUrl } from "@/lib/courses/course-storage";
 import { getTableClient } from "@/lib/azure/table-client";
 import { downloadBlob } from "@/lib/azure/blob-client";
+import { logger } from "@/lib/logger";
 import type { StatementEntity, XAPIStatement } from "@/lib/lrs/types";
 
 // GET /api/learner/dashboard — Current user's dashboard data
@@ -15,16 +16,17 @@ export async function GET(request: NextRequest) {
     const session = await getSession(sessionId);
     if (!session) return NextResponse.json({ error: true, message: "Session expired" }, { status: 401 });
 
-    // Get enrollments
-    const enrollments = await getUserEnrollments(session.userId);
+    // ── Batch: load enrollments, xAPI progress, and ALL courses in parallel ──
+    const [enrollments, xapiProgress, courseMap] = await Promise.all([
+      getUserEnrollments(session.userId),
+      getXapiProgress(session.email),
+      getAllCoursesMap(), // Single scan, cached 5 min — replaces N getCourse() calls
+    ]);
 
-    // Check xAPI for completions and progress per course
-    const xapiProgress = await getXapiProgress(session.email);
-
-    // Get course details for each enrollment
+    // Build course data from enrollments + cached course map
     const courses = [];
     for (const enrollment of enrollments) {
-      const course = await getCourse(enrollment.courseId);
+      const course = courseMap.get(enrollment.courseId) || null;
       const launchUrl = course ? getCourselaunchUrl(course.blobBasePath, course.launchFile) : "";
       const activityId = course?.activityId || "";
 
@@ -56,14 +58,13 @@ export async function GET(request: NextRequest) {
       } else if (xapi?.hasStatements) {
         if (status === "assigned") status = "in_progress";
 
-        // Calculate progress from unique modules interacted with vs total modules in course
         const totalModules = course?.moduleCount || 0;
         const touchedModules = xapi.uniqueModules || 0;
 
         if (totalModules > 0 && touchedModules > 0) {
-          progress = Math.min(Math.round((touchedModules / totalModules) * 100), 99); // Cap at 99 — 100 is only for verb:completed
+          progress = Math.min(Math.round((touchedModules / totalModules) * 100), 99);
         } else {
-          progress = 5; // Minimal — at least launched
+          progress = 5;
         }
       }
 
@@ -93,6 +94,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get last xAPI statement for "continue where you left off"
+    // Uses a single lightweight query — no blob downloads unless we find one
     let lastActivity = null;
     try {
       const stmtTable = await getTableClient("statements");
@@ -114,37 +116,19 @@ export async function GET(request: NextRequest) {
             const objName = (stmt.object as { definition?: { name?: Record<string, string> } }).definition?.name;
             const moduleName = objName ? Object.values(objName)[0] : null;
 
-            // Find the parent course title from enrollments
-            // Storyline IDs: urn:articulate:storyline:{courseId}/{moduleId}
             const activityId = entity.objectId;
             let courseTitle = moduleName || activityId;
             let moduleLabel = "";
+            let resumeCourseId: string | undefined;
 
-            // Match to an enrolled course by checking if the activity ID starts with the course's activity ID
-            const matchedCourse = courses.find((c) => {
-              const course = c as { id: string; title: string };
-              // Check if this xAPI activity belongs to any enrolled course
-              return activityId.startsWith(activityId.split("/")[0]);
-            });
-
-            // Better: look through enrolled courses to find one whose activityId is a prefix
-            for (const c of courses) {
-              const enrolledCourse = await getCourse(c.id);
-              if (enrolledCourse?.activityId && activityId.startsWith(enrolledCourse.activityId)) {
+            // Match against cached course map (no extra DB calls)
+            for (const [cId, c] of courseMap) {
+              if (c.activityId && activityId.startsWith(c.activityId)) {
                 courseTitle = c.title;
+                resumeCourseId = cId;
                 if (moduleName && moduleName !== courseTitle) {
                   moduleLabel = moduleName;
                 }
-                break;
-              }
-            }
-
-            // Find the enrollment courseId for the resume button
-            let resumeCourseId: string | undefined;
-            for (const c of courses) {
-              const enrolledCourse = await getCourse(c.id);
-              if (enrolledCourse?.activityId && activityId.startsWith(enrolledCourse.activityId)) {
-                resumeCourseId = c.id;
                 break;
               }
             }
@@ -170,7 +154,6 @@ export async function GET(request: NextRequest) {
     const inProgress = courses.filter((c) => c.status === "in_progress").length;
     const overdue = courses.filter((c) => c.dueDate && new Date(c.dueDate) < new Date() && c.status !== "completed").length;
 
-    // Next deadline
     const upcoming = courses
       .filter((c) => c.dueDate && c.status !== "completed")
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
@@ -203,18 +186,13 @@ export async function GET(request: NextRequest) {
       } : null,
     });
   } catch (e) {
-    console.error("GET /api/learner/dashboard error:", e);
+    logger.error("GET /api/learner/dashboard failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to load dashboard" }, { status: 500 });
   }
 }
 
 /**
  * Query xAPI statements to determine per-course progress for a learner.
- * Progress = unique modules with statements / total modules in course.
- *
- * Storyline activity IDs follow: urn:articulate:storyline:{courseId}/{moduleId}
- * So a statement for urn:articulate:storyline:ABC/XYZ means module XYZ of course ABC.
- * We group by course root ID and count unique sub-activity IDs.
  */
 async function getXapiProgress(email: string): Promise<Record<string, {
   hasStatements: boolean;
@@ -255,12 +233,6 @@ async function getXapiProgress(email: string): Promise<Record<string, {
         const activityId = entity.objectId;
         if (!activityId) continue;
 
-        // Determine the root course activity ID
-        // Storyline format: urn:articulate:storyline:{courseId}/{moduleId}/{interactionId}
-        // The course root is everything before the first /moduleId
-        const parts = activityId.split("/");
-        // Root course ID is the base (e.g., urn:articulate:storyline:ABC)
-        // If it has sub-parts, first part is the course
         let courseRootId = activityId;
         let isSubActivity = false;
 
@@ -287,7 +259,6 @@ async function getXapiProgress(email: string): Promise<Record<string, {
 
         result[courseRootId].hasStatements = true;
 
-        // Track unique module/interaction IDs for progress calculation
         if (isSubActivity) {
           result[courseRootId].moduleIds.add(activityId);
         }
@@ -308,7 +279,6 @@ async function getXapiProgress(email: string): Promise<Record<string, {
       }
     }
 
-    // Calculate uniqueModules count from sets
     for (const key of Object.keys(result)) {
       result[key].uniqueModules = result[key].moduleIds.size;
     }
@@ -316,7 +286,6 @@ async function getXapiProgress(email: string): Promise<Record<string, {
     // No xAPI data — return empty
   }
 
-  // Strip the Set before returning (not serializable)
   const clean: Record<string, { hasStatements: boolean; completed: boolean; score: number; completedDate: string; timeSpent: number; progress: number; uniqueModules: number }> = {};
   for (const [key, val] of Object.entries(result)) {
     clean[key] = {

@@ -1,7 +1,8 @@
 import { createHash } from "crypto";
 import { getTableClient } from "@/lib/azure/table-client";
-import { uploadBlob, downloadBlob, blobExists } from "@/lib/azure/blob-client";
+import { uploadBlob, downloadBlob, blobExists, deleteBlob } from "@/lib/azure/blob-client";
 import { extractActorIFI } from "./statements";
+import { logger } from "@/lib/logger";
 import type { Actor } from "./types";
 
 // ── Document types ──
@@ -95,8 +96,10 @@ export async function putDocument(params: {
   const newEtag = generateETag(params.content);
   const now = new Date().toISOString();
 
+  // Step 1: Write blob
   await uploadBlob("documents", blobPath, params.content, params.contentType);
 
+  // Step 2: Write table metadata — compensate on failure
   const entity: DocumentMeta = {
     partitionKey,
     rowKey,
@@ -106,10 +109,20 @@ export async function putDocument(params: {
     updatedAt: now,
   };
 
-  if (existing) {
-    await table.updateEntity(entity, "Replace");
-  } else {
-    await table.createEntity(entity);
+  try {
+    if (existing) {
+      await table.updateEntity(entity, "Replace");
+    } else {
+      await table.createEntity(entity);
+    }
+  } catch (err) {
+    // Compensation: table write failed — delete the orphaned blob
+    logger.error("Document table write failed, compensating by deleting blob", {
+      blobPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    await deleteBlob("documents", blobPath).catch(() => {});
+    throw err;
   }
 
   return { etag: newEtag, status: 204 };
@@ -134,14 +147,20 @@ export async function postDocument(params: {
   if (!existing) {
     const newEtag = generateETag(params.content);
     await uploadBlob("documents", blobPath, params.content, params.contentType);
-    await table.createEntity({
-      partitionKey,
-      rowKey,
-      contentType: params.contentType,
-      blobPath,
-      docEtag: newEtag,
-      updatedAt: new Date().toISOString(),
-    } as DocumentMeta);
+    try {
+      await table.createEntity({
+        partitionKey,
+        rowKey,
+        contentType: params.contentType,
+        blobPath,
+        docEtag: newEtag,
+        updatedAt: new Date().toISOString(),
+      } as DocumentMeta);
+    } catch (err) {
+      logger.error("Document table create failed, compensating", { blobPath, error: err instanceof Error ? err.message : String(err) });
+      await deleteBlob("documents", blobPath).catch(() => {});
+      throw err;
+    }
     return { etag: newEtag, status: 204 };
   }
 
@@ -178,17 +197,30 @@ export async function postDocument(params: {
   }
 
   const newEtag = generateETag(finalContent);
+  // Save previous blob path for compensation
+  const previousBlobPath = existing.blobPath;
   await uploadBlob("documents", blobPath, finalContent, finalContentType);
-  await table.updateEntity(
-    {
-      partitionKey,
-      rowKey,
-      contentType: finalContentType,
-      docEtag: newEtag,
-      updatedAt: new Date().toISOString(),
-    },
-    "Merge"
-  );
+  try {
+    await table.updateEntity(
+      {
+        partitionKey,
+        rowKey,
+        contentType: finalContentType,
+        docEtag: newEtag,
+        updatedAt: new Date().toISOString(),
+      },
+      "Merge"
+    );
+  } catch (err) {
+    // Compensation: restore previous blob state
+    logger.error("Document merge table update failed, compensating", {
+      blobPath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    // The blob was overwritten — we can't restore the old content,
+    // but we log it so the inconsistency is visible.
+    throw err;
+  }
 
   return { etag: newEtag, status: 204 };
 }

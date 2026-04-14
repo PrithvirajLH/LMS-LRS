@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from "uuid";
 import { getTableClient } from "@/lib/azure/table-client";
 import { uploadBlob, downloadBlob } from "@/lib/azure/blob-client";
 import { validateStatement, ValidationError } from "./validation";
+import { storageQueue } from "@/lib/queue";
+import { logger } from "@/lib/logger";
 import type {
   XAPIStatement,
   Actor,
@@ -287,53 +289,71 @@ export async function storeStatements(
     const { objectType, objectId } = extractObjectInfo(stmt.object);
     const registration = stmt.context?.registration || "";
 
-    // Write full JSON to Blob Storage
-    await uploadBlob(
-      "statements",
-      `${statementId}.json`,
-      JSON.stringify(fullStatement)
-    );
-
-    // Write metadata to Table Storage
     const pk = partitionKeyFromDate(now);
     const rk = `${reverseTimestamp(now)}-${statementId}`;
 
-    const entity: StatementEntity = {
-      partitionKey: pk,
-      rowKey: rk,
-      statementId,
-      actorIfiType: actorIFI.type,
-      actorIfiValue: actorIFI.value,
-      verbId: stmt.verb.id,
-      objectType,
-      objectId,
-      registration,
-      timestamp,
-      stored,
-      isVoided: false,
-      voidingStatementId: "",
-      credentialId: credential.rowKey,
-    };
+    // ── Enqueue storage writes (runs in background after response) ──
+    // Validation already passed; duplicate check already passed.
+    // The HTTP response can return the statement ID immediately.
+    const accepted = storageQueue.enqueue(async () => {
+      try {
+        // 1. Write full JSON to Blob Storage
+        await uploadBlob(
+          "statements",
+          `${statementId}.json`,
+          JSON.stringify(fullStatement)
+        );
 
-    await statementsTable.createEntity(entity);
+        // 2. Write metadata to Table Storage
+        const entity: StatementEntity = {
+          partitionKey: pk,
+          rowKey: rk,
+          statementId,
+          actorIfiType: actorIFI.type,
+          actorIfiValue: actorIFI.value,
+          verbId: stmt.verb.id,
+          objectType,
+          objectId,
+          registration,
+          timestamp,
+          stored,
+          isVoided: false,
+          voidingStatementId: "",
+          credentialId: credential.rowKey as string,
+        };
 
-    // Write index entry
-    const indexEntity: StatementIndexEntity = {
-      partitionKey: "sid",
-      rowKey: statementId,
-      statementsPartitionKey: pk,
-      statementsRowKey: rk,
-    };
+        await statementsTable.createEntity(entity);
 
-    await indexTable.createEntity(indexEntity);
+        // 3. Write index entry
+        const indexEntity: StatementIndexEntity = {
+          partitionKey: "sid",
+          rowKey: statementId,
+          statementsPartitionKey: pk,
+          statementsRowKey: rk,
+        };
 
-    // Handle voiding: if this is a voiding statement, mark the target
-    if (
-      stmt.verb.id === "http://adlnet.gov/expapi/verbs/voided" &&
-      (stmt.object as { objectType?: string }).objectType === "StatementRef"
-    ) {
-      const targetId = (stmt.object as { id: string }).id;
-      await voidStatement(targetId, statementId);
+        await indexTable.createEntity(indexEntity);
+
+        // 4. Handle voiding: if this is a voiding statement, mark the target
+        if (
+          fullStatement.verb.id === "http://adlnet.gov/expapi/verbs/voided" &&
+          (fullStatement.object as { objectType?: string }).objectType === "StatementRef"
+        ) {
+          const targetId = (fullStatement.object as { id: string }).id;
+          await voidStatement(targetId, statementId);
+        }
+      } catch (err) {
+        logger.error("Background statement storage failed", {
+          statementId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err; // Re-throw so the queue retries
+      }
+    });
+
+    if (!accepted) {
+      // Back-pressure: queue is full, server is overwhelmed
+      throw new ValidationError("Server is busy — try again shortly");
     }
 
     ids.push(statementId);

@@ -1,5 +1,6 @@
 import { compare } from "bcryptjs";
 import { getTableClient } from "@/lib/azure/table-client";
+import { credentialCache } from "@/lib/cache";
 import type { CredentialEntity } from "./types";
 
 export interface AuthResult {
@@ -56,6 +57,14 @@ export async function authenticateRequest(
     };
   }
 
+  // ── Cache-first: skip bcrypt if we've verified this key+secret recently ──
+  const cacheKey = `${apiKey}:${encoded}`; // encoded includes the secret
+  const cached = credentialCache.get(cacheKey);
+  if (cached) {
+    return { authenticated: true, credential: cached.credential as unknown as CredentialEntity };
+  }
+
+  // ── Cache miss: verify against Azure Tables ──
   const table = await getTableClient("credentials");
 
   let entity: CredentialEntity;
@@ -89,6 +98,12 @@ export async function authenticateRequest(
       message: "Invalid credentials",
     };
   }
+
+  // Cache the verified credential for 60 seconds (avoids bcrypt on every statement)
+  credentialCache.set(cacheKey, {
+    credential: entity as unknown as Record<string, unknown>,
+    secretHash: entity.apiSecretHash,
+  });
 
   return { authenticated: true, credential: entity };
 }

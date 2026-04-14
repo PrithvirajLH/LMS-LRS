@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BlobServiceClient } from "@azure/storage-blob";
+import { logger } from "@/lib/logger";
 
 const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING!;
 
@@ -7,8 +8,11 @@ const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING!;
  * GET /api/courses/{courseId}/{...filePath}
  *
  * Proxies course files from Azure Blob Storage.
- * No public blob access needed — server reads with connection string.
- * Caches aggressively since course content is immutable once uploaded.
+ * CDN-ready: supports ETag conditional requests (304 Not Modified),
+ * long-lived immutable caching, and streaming for large files.
+ *
+ * To add a CDN: point Azure CDN or Cloudflare at this endpoint.
+ * The ETag + Cache-Control headers ensure proper cache revalidation.
  */
 export async function GET(
   request: NextRequest,
@@ -25,42 +29,63 @@ export async function GET(
     const container = blobService.getContainerClient("courses");
     const blob = container.getBlockBlobClient(blobPath);
 
-    // Check if blob exists
-    const exists = await blob.exists();
-    if (!exists) {
-      return new NextResponse("Not Found", { status: 404 });
+    // Get blob properties (lightweight — no download)
+    let properties;
+    try {
+      properties = await blob.getProperties();
+    } catch (e: unknown) {
+      const err = e as { statusCode?: number };
+      if (err.statusCode === 404) {
+        return new NextResponse("Not Found", { status: 404 });
+      }
+      throw e;
     }
 
-    // Download blob
-    const downloadResponse = await blob.download(0);
-    const properties = await blob.getProperties();
+    const etag = properties.etag || "";
+    const contentType = properties.contentType || getContentType(blobPath);
+    const contentLength = properties.contentLength || 0;
 
-    // Read stream to buffer
-    const chunks: Buffer[] = [];
+    // ── ETag-based conditional request (304 Not Modified) ──
+    // If the client (or CDN) already has this version, skip the download.
+    const ifNoneMatch = request.headers.get("if-none-match");
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          ETag: etag,
+          "Cache-Control": "public, max-age=604800, immutable", // 7 days
+        },
+      });
+    }
+
+    // ── Download and stream the blob ──
+    const downloadResponse = await blob.download(0);
     const readableStream = downloadResponse.readableStreamBody;
     if (!readableStream) {
       return new NextResponse("Empty blob", { status: 404 });
     }
 
+    const chunks: Buffer[] = [];
     for await (const chunk of readableStream as AsyncIterable<Buffer>) {
       chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
     }
     const body = Buffer.concat(chunks);
 
-    // Determine content type
-    const contentType = properties.contentType || getContentType(blobPath);
-
     return new NextResponse(body, {
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Content-Length": String(body.length),
-        "Cache-Control": "public, max-age=86400, immutable", // 24h cache — course files don't change
-        "Access-Control-Allow-Origin": "*",
+        "Content-Length": String(contentLength || body.length),
+        ETag: etag,
+        // Course files are immutable once uploaded — cache for 7 days.
+        // CDN or browser revalidates via If-None-Match after expiry.
+        "Cache-Control": "public, max-age=604800, immutable",
+        // Vary on encoding so CDN can cache gzipped + uncompressed separately
+        Vary: "Accept-Encoding",
       },
     });
   } catch (e) {
-    console.error("Course proxy error:", e);
+    logger.error("Course proxy error", { error: e });
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

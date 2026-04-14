@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registerUser, createSession, getSession } from "@/lib/auth/session";
+import { authLimiter, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
   try {
+    const limit = authLimiter.check(ip);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: true, message: "Too many registration attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     const body = await request.json();
     const { name, email, employeeId, password, facility, department, position, role } = body;
 
@@ -48,7 +59,7 @@ export async function POST(request: NextRequest) {
     return response;
   } catch (e) {
     const message = e instanceof Error ? e.message : "Registration failed";
-    console.error("Register error:", e);
+    logger.error("Registration failed", { error: e, ip });
     return NextResponse.json({ error: true, message }, { status: 500 });
   }
 }

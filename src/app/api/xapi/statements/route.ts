@@ -5,6 +5,8 @@ import { storeStatements, getStatements } from "@/lib/lrs/statements";
 import { ValidationError } from "@/lib/lrs/validation";
 import { getEffectiveMethod } from "@/lib/lrs/method-override";
 import { parseMultipartMixed, storeAttachment, validateAttachments } from "@/lib/lrs/attachments";
+import { xapiLimiter } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 import type { XAPIStatement, StatementQueryParams } from "@/lib/lrs/types";
 
 // POST /api/xapi/statements — Store statements (or dispatch method override)
@@ -21,6 +23,13 @@ export async function POST(request: NextRequest) {
 
     const auth = await authenticateRequest(request.headers.get("Authorization"));
     if (!auth.authenticated) return xapiError(auth.message, auth.status);
+
+    // Rate limit per credential (uses credential's own rateLimitPerMinute or default 300)
+    const limit = xapiLimiter.check(auth.credential.rowKey as string);
+    if (!limit.allowed) {
+      logger.warn("xAPI rate limit exceeded", { credential: auth.credential.rowKey });
+      return xapiError("Rate limit exceeded", 429);
+    }
 
     const contentType = request.headers.get("Content-Type") || "";
     let statements: XAPIStatement[];
@@ -80,7 +89,7 @@ export async function POST(request: NextRequest) {
     return xapiResponse(ids, 200);
   } catch (e) {
     if (e instanceof ValidationError) return xapiError(e.message, 400);
-    console.error("POST /xapi/statements error:", e);
+    logger.error("POST /xapi/statements failed", { error: e });
     return xapiError("Internal server error", 500);
   }
 }
@@ -129,7 +138,7 @@ export async function PUT(request: NextRequest) {
     return xapiResponse(null, 204);
   } catch (e) {
     if (e instanceof ValidationError) return xapiError(e.message, 400);
-    console.error("PUT /xapi/statements error:", e);
+    logger.error("PUT /xapi/statements failed", { error: e });
     return xapiError("Internal server error", 500);
   }
 }
@@ -185,7 +194,7 @@ export async function GET(request: NextRequest) {
     return xapiResponse(result, 200);
   } catch (e) {
     if (e instanceof ValidationError) return xapiError(e.message, 400);
-    console.error("GET /xapi/statements error:", e);
+    logger.error("GET /xapi/statements failed", { error: e });
     return xapiError("Internal server error", 500);
   }
 }

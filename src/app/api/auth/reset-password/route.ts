@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resetPasswordWithToken } from "@/lib/auth/session";
+import { resetLimiter, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
   try {
+    const limit = resetLimiter.check(ip);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: true, message: "Too many reset attempts. Try again later." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     const { token, password } = await request.json();
     if (!token || !password) return NextResponse.json({ error: true, message: "Token and password are required" }, { status: 400 });
     if (password.length < 6) return NextResponse.json({ error: true, message: "Password must be at least 6 characters" }, { status: 400 });
@@ -15,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message: "Password reset successfully. You can now sign in." });
   } catch (e) {
-    console.error("Reset password error:", e);
+    logger.error("Reset password failed", { error: e, ip });
     return NextResponse.json({ error: true, message: "Failed to reset password" }, { status: 500 });
   }
 }

@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createResetToken } from "@/lib/auth/session";
+import { resetLimiter, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
   try {
+    const limit = resetLimiter.check(ip);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: true, message: "Too many reset requests. Try again later." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+      );
+    }
+
     const { email } = await request.json();
     if (!email) return NextResponse.json({ error: true, message: "Email is required" }, { status: 400 });
 
@@ -21,7 +32,7 @@ export async function POST(request: NextRequest) {
       resetUrl: `/reset-password?token=${result.token}`,
     });
   } catch (e) {
-    console.error("Forgot password error:", e);
+    logger.error("Forgot password failed", { error: e, ip });
     return NextResponse.json({ error: true, message: "Failed to process request" }, { status: 500 });
   }
 }
