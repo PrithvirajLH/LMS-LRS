@@ -1,4 +1,4 @@
-import { requireAuth, isAuthError } from "@/lib/auth/guard";
+import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { getTableClient } from "@/lib/azure/table-client";
 import { logger } from "@/lib/logger";
@@ -18,7 +18,6 @@ import type { AuditEntry } from "@/lib/audit";
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["admin"]);
-    if (isAuthError(auth)) return auth;
 
     const url = request.nextUrl;
     const actionFilter = url.searchParams.get("action") || undefined;
@@ -69,6 +68,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ entries, count: entries.length });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("GET /api/admin/audit failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to query audit log" }, { status: 500 });
   }

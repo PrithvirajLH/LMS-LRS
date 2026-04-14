@@ -1,4 +1,4 @@
-import { requireAuth, isAuthError } from "@/lib/auth/guard";
+import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { hash } from "bcryptjs";
@@ -11,7 +11,7 @@ import type { CredentialEntity } from "@/lib/lrs/types";
 // POST /api/admin/credentials — Create a new API credential
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["admin"]);
     const body = await request.json();
     const displayName: string = body.displayName || "Unnamed Credential";
     const scopes: string = body.scopes || "statements/write,statements/read";
@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("POST /api/admin/credentials failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to create credential" },
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
 // PATCH /api/admin/credentials — Toggle active status
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["admin"]);
     const body = await request.json();
     const { apiKey, isActive } = body;
     if (!apiKey) {
@@ -104,6 +105,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ apiKey, isActive: !!isActive });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("PATCH /api/admin/credentials failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to update credential" },
@@ -115,7 +117,7 @@ export async function PATCH(request: NextRequest) {
 // GET /api/admin/credentials — List all credentials (without secrets)
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["admin"]);
     const table = await getTableClient("credentials");
     const credentials: Array<{
       apiKey: string;
@@ -141,6 +143,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ credentials });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("GET /api/admin/credentials failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to list credentials" },

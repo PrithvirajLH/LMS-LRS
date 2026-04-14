@@ -87,7 +87,7 @@ export default function RegisterPage() {
           </div>
 
           <FormField label="Email" value={email} onChange={setEmail} required type="email" placeholder="jane@company.com" />
-          <FormField label="Password" value={password} onChange={setPassword} required type="password" placeholder="Minimum 6 characters" />
+          <FormField label="Password" value={password} onChange={setPassword} required type="password" placeholder="Min 12 chars, upper + lower + number" />
 
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Facility" value={facility} onChange={setFacility} required placeholder="Sunrise Dallas" />

@@ -8,6 +8,22 @@ import { logger } from "@/lib/logger";
 const SESSION_COOKIE = "lms_session";
 const SESSION_TTL_HOURS = 24;
 
+/** Validate password meets minimum strength requirements. Returns error message or null. */
+export function validatePassword(password: string): string | null {
+  if (
+    password.length < 12 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password)
+  ) {
+    return "Password must be at least 12 characters with uppercase, lowercase, and a number";
+  }
+  return null;
+}
+
+// ── Role type ──
+export type UserRole = "learner" | "instructor" | "admin";
+
 // ── Session Entity ──
 export interface SessionEntity {
   partitionKey: string; // "session"
@@ -15,7 +31,7 @@ export interface SessionEntity {
   userId: string;
   userName: string;
   email: string;
-  role: string;         // "learner" | "instructor" | "admin"
+  role: UserRole;
   facility: string;
   expiresAt: string;
 }
@@ -30,7 +46,7 @@ export interface AuthUser {
   facility: string;
   department: string;
   position: string;
-  role: string;
+  role: UserRole;
   status: string;
   passwordHash: string;
   tags: string;
@@ -70,8 +86,12 @@ async function writeUserLookupIndex(user: { email: string; employeeId: string; p
   for (const entry of [emailEntry, empIdEntry]) {
     try {
       await lookupTable.upsertEntity(entry, "Replace");
-    } catch {
-      // Best effort — login still works with fallback scan
+    } catch (e) {
+      logger.warn("Failed to write user lookup index entry", {
+        partitionKey: entry.partitionKey,
+        rowKey: entry.rowKey,
+        error: e,
+      });
     }
   }
 }
@@ -109,16 +129,22 @@ async function findUserByIdentifier(identifier: string): Promise<AuthUser | null
     // Index table might not exist yet — fall through to scan
   }
 
-  // ── Fallback: full scan (backward compat for pre-index users) ──
-  logger.warn("User lookup falling back to full table scan", { identifier: searchLower });
+  // ── Fallback: capped scan (backward compat for pre-index users) ──
+  logger.warn("User lookup falling back to table scan", { identifier: searchLower });
   const iter = userTable.listEntities<AuthUser>();
+  let scanned = 0;
+  const MAX_SCAN = 500;
   for await (const entity of iter) {
+    if (++scanned > MAX_SCAN) {
+      logger.error("User lookup scan exceeded limit, aborting", { identifier: searchLower, scanned });
+      break;
+    }
     if (
       entity.email?.toLowerCase() === searchLower ||
       entity.employeeId?.toLowerCase() === searchLower
     ) {
       // Backfill the index for next time
-      writeUserLookupIndex(entity).catch(() => {});
+      writeUserLookupIndex(entity).catch((e) => logger.warn("Lookup index backfill failed", { error: e }));
       return entity;
     }
   }
@@ -197,7 +223,7 @@ export async function getSession(sessionId: string): Promise<SessionEntity | nul
       userId: cached.userId,
       userName: cached.userName,
       email: cached.email,
-      role: cached.role,
+      role: cached.role as UserRole,
       facility: cached.facility,
       expiresAt: cached.expiresAt,
     };
@@ -289,7 +315,7 @@ export async function registerUser(data: {
   facility: string;
   department?: string;
   position?: string;
-  role?: string;
+  role?: UserRole;
 }): Promise<AuthUser> {
   // Check if email already exists via index (O(1) instead of full scan)
   const existing = await findUserByIdentifier(data.email);
@@ -364,6 +390,9 @@ export async function createResetToken(email: string): Promise<{ token: string; 
 }
 
 export async function resetPasswordWithToken(token: string, newPassword: string): Promise<{ success: boolean } | { error: string }> {
+  const pwError = validatePassword(newPassword);
+  if (pwError) return { error: pwError };
+
   const sessionTable = await getTableClient("sessions");
 
   let resetEntity: ResetTokenEntity;
@@ -397,6 +426,9 @@ export async function resetPasswordWithToken(token: string, newPassword: string)
 
 // ── Admin: Reset password for a user ──
 export async function adminResetPassword(userId: string, newPassword: string): Promise<{ success: boolean } | { error: string }> {
+  const pwError = validatePassword(newPassword);
+  if (pwError) return { error: pwError };
+
   const user = await findUserById(userId);
   if (!user) return { error: "User not found" };
 
@@ -410,7 +442,7 @@ export async function adminResetPassword(userId: string, newPassword: string): P
 }
 
 // ── Admin: Update user role/status ──
-export async function adminUpdateUser(userId: string, updates: { role?: string; status?: string }): Promise<{ success: boolean } | { error: string }> {
+export async function adminUpdateUser(userId: string, updates: { role?: UserRole; status?: string }): Promise<{ success: boolean } | { error: string }> {
   const user = await findUserById(userId);
   if (!user) return { error: "User not found" };
 

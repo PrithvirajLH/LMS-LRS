@@ -94,7 +94,15 @@ export async function uploadCourseZip(
     : "";
 
   // Upload all files to Blob Storage
+  const MAX_ENTRIES = 5000;
+  const MAX_TOTAL_SIZE = 500 * 1024 * 1024; // 500 MB uncompressed
+
+  if (entries.length > MAX_ENTRIES) {
+    throw new Error(`ZIP contains ${entries.length} entries (max ${MAX_ENTRIES})`);
+  }
+
   let uploadCount = 0;
+  let totalSize = 0;
   for (const entry of entries) {
     if (entry.isDirectory) continue;
     if (entry.entryName.includes("__MACOSX")) continue;
@@ -105,9 +113,24 @@ export async function uploadCourseZip(
       relativePath = relativePath.substring(rootPrefix.length);
     }
 
-    // Security: reject path traversal attempts
-    if (relativePath.includes("..") || relativePath.startsWith("/") || relativePath.includes("\\")) {
-      continue; // Skip dangerous paths
+    // Security: reject path traversal and dangerous filenames
+    if (
+      relativePath.includes("..") ||
+      relativePath.startsWith("/") ||
+      relativePath.includes("\\") ||
+      relativePath.includes("\x00") ||
+      relativePath.includes("%2e") ||
+      relativePath.includes("%2f") ||
+      relativePath.includes("%5c") ||
+      relativePath.length > 255
+    ) {
+      continue;
+    }
+
+    // Zip bomb protection: cap total uncompressed size
+    totalSize += entry.header.size;
+    if (totalSize > MAX_TOTAL_SIZE) {
+      throw new Error("ZIP uncompressed content exceeds 500 MB size limit");
     }
 
     const blobName = `${blobBasePath}${relativePath}`;

@@ -31,6 +31,68 @@ async function _POST(request: NextRequest) {
   return _postHandler(request);
 }
 
+// HEAD /api/xapi/activities/state — same as GET but no body
+export async function HEAD(request: NextRequest) {
+  try {
+    const vErr = validateVersionHeader(request.headers.get("X-Experience-API-Version"));
+    if (vErr) return xapiError(vErr, 400);
+    const auth = await authenticateRequest(request.headers.get("Authorization"));
+    if (!auth.authenticated) return xapiError(auth.message, auth.status);
+
+    const url = request.nextUrl;
+    const activityId = url.searchParams.get("activityId");
+    const stateId = url.searchParams.get("stateId");
+    const agentStr = url.searchParams.get("agent");
+    const registration = url.searchParams.get("registration") || undefined;
+
+    if (!activityId) return xapiError("activityId parameter is required", 400);
+    if (!agentStr) return xapiError("agent parameter is required", 400);
+
+    const agent = parseAgent(agentStr);
+    if (!agent) return xapiError("agent must be a valid JSON agent object", 400);
+
+    if (!stateId) {
+      // List mode — return 200 with JSON content-type headers, no body
+      const { NextResponse: NR } = await import("next/server");
+      return new NR(null, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Experience-API-Version": "1.0.3",
+        },
+      });
+    }
+
+    const doc = await getDocument({
+      docType: "state",
+      activityId,
+      agent,
+      stateId,
+      registration,
+    });
+
+    if (!doc) {
+      // Storyline compat — return empty 200 instead of 404
+      const { NextResponse: NR } = await import("next/server");
+      return new NR(null, { status: 200, headers: { "X-Experience-API-Version": "1.0.3" } });
+    }
+
+    const { NextResponse } = await import("next/server");
+    return new NextResponse(null, {
+      status: 200,
+      headers: {
+        "Content-Type": doc.contentType,
+        "ETag": `"${doc.etag}"`,
+        "Last-Modified": new Date(doc.updatedAt).toUTCString(),
+        "X-Experience-API-Version": "1.0.3",
+      },
+    });
+  } catch (e) {
+    console.error("HEAD /xapi/activities/state error:", e);
+    return xapiError("Internal server error", 500);
+  }
+}
+
 // PUT /api/xapi/activities/state
 export async function PUT(request: NextRequest) {
   try {
@@ -52,8 +114,20 @@ export async function PUT(request: NextRequest) {
     const agent = parseAgent(agentStr);
     if (!agent) return xapiError("agent must be a valid JSON agent object", 400);
 
-    const content = await request.text();
-    const contentType = request.headers.get("Content-Type") || "application/octet-stream";
+    let content: string;
+    const rawContentType = request.headers.get("Content-Type") || "application/octet-stream";
+    // For method-override POST-as-PUT with url-encoded bodies, read content from the
+    // "content" form field. The actual content-type of the document is passed via the
+    // Content-Type query parameter or defaults based on the form field.
+    if (rawContentType.includes("application/x-www-form-urlencoded")) {
+      const formData = await request.formData();
+      content = (formData.get("content") as string) || "";
+    } else {
+      content = await request.text();
+    }
+    const contentType = rawContentType.includes("application/x-www-form-urlencoded")
+      ? "application/octet-stream"
+      : rawContentType;
 
     const result = await putDocument({
       docType: "state",

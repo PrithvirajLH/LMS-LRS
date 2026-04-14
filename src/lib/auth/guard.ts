@@ -1,41 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession, type SessionEntity } from "./session";
+import { getSession, type SessionEntity, type UserRole } from "./session";
+
+export class AuthError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
 
 /**
  * Auth guard for API routes.
- * Returns the session if authenticated and authorized, or an error response.
+ * Returns the session if authenticated and authorized, or throws AuthError.
  */
 export async function requireAuth(
   request: NextRequest,
-  allowedRoles?: string[]
-): Promise<{ session: SessionEntity } | NextResponse> {
+  allowedRoles?: UserRole[]
+): Promise<{ session: SessionEntity }> {
   const sessionId = request.cookies.get("lms_session")?.value;
 
   if (!sessionId) {
-    return NextResponse.json(
-      { error: true, message: "Authentication required" },
-      { status: 401 }
-    );
+    throw new AuthError(401, "Authentication required");
   }
 
   const session = await getSession(sessionId);
 
   if (!session) {
-    const response = NextResponse.json(
-      { error: true, message: "Session expired" },
-      { status: 401 }
-    );
-    response.cookies.delete("lms_session");
-    return response;
+    throw new AuthError(401, "Session expired");
   }
 
   // Check role if specified
   if (allowedRoles && allowedRoles.length > 0) {
     if (!allowedRoles.includes(session.role)) {
-      return NextResponse.json(
-        { error: true, message: "Insufficient permissions" },
-        { status: 403 }
-      );
+      throw new AuthError(403, "Insufficient permissions");
     }
   }
 
@@ -43,8 +38,18 @@ export async function requireAuth(
 }
 
 /**
- * Helper to check if the result is an error response.
+ * Convert an AuthError to a NextResponse. Use in route catch blocks.
  */
-export function isAuthError(result: { session: SessionEntity } | NextResponse): result is NextResponse {
-  return result instanceof NextResponse;
+export function handleAuthError(e: unknown): NextResponse | null {
+  if (e instanceof AuthError) {
+    const response = NextResponse.json(
+      { error: true, message: e.message },
+      { status: e.status }
+    );
+    if (e.status === 401) {
+      response.cookies.delete("lms_session");
+    }
+    return response;
+  }
+  return null;
 }

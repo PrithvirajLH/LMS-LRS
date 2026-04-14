@@ -81,7 +81,7 @@ export default function LearnersPage() {
   }
 
   async function handleResetPassword() {
-    if (!resetModal || resetPassword.length < 6) return;
+    if (!resetModal || resetPassword.length < 12) return;
     setActionLoading(resetModal.learner.id + "-pw");
     await fetch("/api/admin/users/reset-password", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: resetModal.learner.id, newPassword: resetPassword }) });
     setActionLoading(null);
@@ -404,15 +404,15 @@ export default function LearnersPage() {
                       type="password"
                       value={resetPassword}
                       onChange={(e) => setResetPassword(e.target.value)}
-                      placeholder="Minimum 6 characters"
+                      placeholder="Min 12 chars, upper + lower + number"
                       autoFocus
                       className="w-full rounded-lg px-4 py-3 outline-none"
                       style={{ fontFamily: "var(--font-body)", fontSize: "15px", color: "var(--text-primary)", backgroundColor: "var(--bg-page)", border: "1px solid var(--border-default)" }}
-                      onKeyDown={(e) => { if (e.key === "Enter" && resetPassword.length >= 6) handleResetPassword(); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && resetPassword.length >= 12) handleResetPassword(); }}
                     />
-                    {resetPassword.length > 0 && resetPassword.length < 6 && (
+                    {resetPassword.length > 0 && resetPassword.length < 12 && (
                       <p className="mt-1.5" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--amber-600)" }}>
-                        Password must be at least 6 characters
+                        Password must be at least 12 characters with uppercase, lowercase, and a number
                       </p>
                     )}
                   </div>
@@ -420,7 +420,7 @@ export default function LearnersPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={handleResetPassword}
-                      disabled={resetPassword.length < 6 || actionLoading === resetModal.learner.id + "-pw"}
+                      disabled={resetPassword.length < 12 || actionLoading === resetModal.learner.id + "-pw"}
                       className="flex items-center gap-2 rounded-[5px] px-5 py-2.5 disabled:opacity-50"
                       style={{ fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", backgroundColor: "var(--btn-primary)", color: "var(--teal-50)" }}
                     >

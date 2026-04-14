@@ -67,8 +67,8 @@ export default function ProfilePage() {
       setMessage({ type: "error", text: "Passwords do not match." });
       return;
     }
-    if (newPassword.length < 6) {
-      setMessage({ type: "error", text: "Password must be at least 6 characters." });
+    if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      setMessage({ type: "error", text: "Password must be at least 12 characters with uppercase, lowercase, and a number." });
       return;
     }
     setSaving(true);
@@ -314,7 +314,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <label style={{ fontFamily: "var(--font-label)", fontSize: "9px", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-body)", display: "block", marginBottom: "6px" }}>New Password</label>
-              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Minimum 6 characters"
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min 12 chars, upper + lower + number"
                 className="w-full rounded-lg px-4 py-3 outline-none"
                 style={{ fontFamily: "var(--font-body)", fontSize: "14px", color: "var(--text-primary)", backgroundColor: "var(--bg-page)", border: "1px solid var(--border-default)" }} />
             </div>

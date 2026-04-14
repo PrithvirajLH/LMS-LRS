@@ -1,4 +1,4 @@
-import { requireAuth, isAuthError } from "@/lib/auth/guard";
+import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import {
   saveCourseMetadata,
@@ -14,7 +14,7 @@ import { logger } from "@/lib/logger";
 // POST /api/admin/courses — Save course metadata (after upload)
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const body = await request.json();
 
     const {
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
       launchUrl,
     }, { status: 201 });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("POST /api/admin/courses failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to save course" },
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
 // GET /api/admin/courses — List all courses
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const status = request.nextUrl.searchParams.get("status") || undefined;
     const courses = await listCourses(status);
 
@@ -103,6 +104,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ courses: withUrls });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("GET /api/admin/courses failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to list courses" },
@@ -114,7 +116,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/admin/courses — Update course (publish, edit metadata)
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const body = await request.json();
     const { courseId, ...updates } = body;
 
@@ -145,6 +147,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ courseId, ...updates });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("PATCH /api/admin/courses failed", { error: e });
     return NextResponse.json(
       { error: true, message: "Failed to update course" },

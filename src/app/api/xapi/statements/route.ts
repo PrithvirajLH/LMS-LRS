@@ -111,8 +111,16 @@ export async function PUT(request: NextRequest) {
     }
 
     let body: unknown;
+    const contentType = request.headers.get("Content-Type") || "";
     try {
-      body = await request.json();
+      if (contentType.includes("application/x-www-form-urlencoded")) {
+        // Method override: PUT-as-POST with url-encoded body
+        const formData = await request.formData();
+        const content = formData.get("content") as string;
+        body = content ? JSON.parse(content) : null;
+      } else {
+        body = await request.json();
+      }
     } catch {
       return xapiError("Invalid JSON in request body", 400);
     }

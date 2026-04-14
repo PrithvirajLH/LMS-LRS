@@ -1,4 +1,4 @@
-import { requireAuth, isAuthError } from "@/lib/auth/guard";
+import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { listUsers, getAllEnrollments, type UserEntity, type EnrollmentEntity } from "@/lib/users/user-storage";
 import { getTableClient } from "@/lib/azure/table-client";
@@ -30,7 +30,7 @@ interface ReportRow {
 // GET /api/admin/reports — Generate training compliance report
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const facility = request.nextUrl.searchParams.get("facility") || undefined;
     const dateFrom = request.nextUrl.searchParams.get("dateFrom") || undefined;
     const dateTo = request.nextUrl.searchParams.get("dateTo") || undefined;
@@ -121,6 +121,7 @@ export async function GET(request: NextRequest) {
       generatedAt: new Date().toISOString(),
     });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     console.error("GET /api/admin/reports error:", e);
     return NextResponse.json({ error: true, message: "Failed to generate report" }, { status: 500 });
   }

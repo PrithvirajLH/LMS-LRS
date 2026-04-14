@@ -110,7 +110,7 @@ export const resetLimiter = new RateLimiter({
  */
 const xapiLimit = parseInt(process.env.XAPI_RATE_LIMIT || "300", 10);
 export const xapiLimiter = new RateLimiter({
-  maxRequests: xapiLimit || 999999, // 0 = effectively disabled
+  maxRequests: xapiLimit || 999999, // 0 = effectively disabled (for conformance testing)
   windowSeconds: 60,
 });
 

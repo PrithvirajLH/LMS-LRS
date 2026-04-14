@@ -21,6 +21,35 @@ export class ValidationError extends Error {
   }
 }
 
+// ── Helpers: strict type assertions ──
+
+function assertIsObject(value: unknown, path: string): asserts value is Record<string, unknown> {
+  if (value === null || value === undefined) {
+    throw new ValidationError(`${path}: must be a non-null object`);
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new ValidationError(`${path}: must be a non-null object`);
+  }
+}
+
+function assertIsString(value: unknown, path: string): asserts value is string {
+  if (value === null || value === undefined || typeof value !== "string") {
+    throw new ValidationError(`${path}: must be a string`);
+  }
+}
+
+function assertIsBoolean(value: unknown, path: string): asserts value is boolean {
+  if (typeof value !== "boolean") {
+    throw new ValidationError(`${path}: must be a boolean`);
+  }
+}
+
+function assertIsNumber(value: unknown, path: string): asserts value is number {
+  if (typeof value !== "number" || isNaN(value)) {
+    throw new ValidationError(`${path}: must be a number`);
+  }
+}
+
 // ── IRI validation (loose — must be a URI-like string) ──
 function isValidIRI(value: string): boolean {
   try {
@@ -46,16 +75,41 @@ function isValidTimestamp(value: string): boolean {
   return !isNaN(Date.parse(value));
 }
 
-// ── ISO 8601 duration validation (loose) ──
-const DURATION_RE = /^P(\d+Y)?(\d+M)?(\d+D)?(T(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/;
+// ── ISO 8601 duration validation ──
+// Must accept: P4W (weeks), fractional values in various positions, PT1H30M etc.
+const DURATION_RE =
+  /^P(?:(\d+(?:\.\d+)?Y)?(\d+(?:\.\d+)?M)?(\d+(?:\.\d+)?W)?(\d+(?:\.\d+)?D)?(T(?:(\d+(?:\.\d+)?H)?(\d+(?:\.\d+)?M)?(\d+(?:\.\d+)?S)?)?)?)?$/;
 
 function isValidDuration(value: string): boolean {
-  return DURATION_RE.test(value);
+  if (!value.startsWith("P")) return false;
+  if (value === "P") return false; // bare P with nothing
+  const match = DURATION_RE.exec(value);
+  if (!match) return false;
+  // Must have at least one component after P
+  // match[0] is the full match; groups 1-8 are the components
+  const hasDate = match[1] || match[2] || match[3] || match[4];
+  const hasTime = match[6] || match[7] || match[8];
+  const hasT = value.includes("T");
+  // If T is present, there must be at least one time component
+  if (hasT && !hasTime) return false;
+  if (!hasDate && !hasTime) return false;
+  return true;
+}
+
+// ── Validate a LanguageMap ──
+function validateLanguageMap(value: unknown, path: string): void {
+  assertIsObject(value, path);
+  const map = value as Record<string, unknown>;
+  for (const key of Object.keys(map)) {
+    if (typeof map[key] !== "string") {
+      throw new ValidationError(`${path}["${key}"]: language map values must be strings`);
+    }
+  }
 }
 
 // ── Count Inverse Functional Identifiers on an agent/group ──
 function countIFIs(
-  obj: { mbox?: string; mbox_sha1sum?: string; openid?: string; account?: unknown }
+  obj: Record<string, unknown>
 ): number {
   let count = 0;
   if (obj.mbox !== undefined) count++;
@@ -65,279 +119,616 @@ function countIFIs(
   return count;
 }
 
-// ── Validate Actor ──
-function validateAgent(agent: Agent, path: string): void {
-  const ifiCount = countIFIs(agent);
-  if (ifiCount === 0) {
-    throw new ValidationError(`${path}: must have exactly one IFI (mbox, mbox_sha1sum, openid, or account), found none`);
-  }
-  if (ifiCount > 1) {
-    throw new ValidationError(`${path}: must have exactly one IFI, found ${ifiCount}`);
+// ── Valid interaction types (case-sensitive) ──
+const VALID_INTERACTION_TYPES = new Set([
+  "true-false",
+  "choice",
+  "fill-in",
+  "long-fill-in",
+  "matching",
+  "performance",
+  "sequencing",
+  "likert",
+  "numeric",
+  "other",
+]);
+
+// ── Validate Agent ──
+function validateAgent(agent: unknown, path: string): void {
+  assertIsObject(agent, path);
+  const a = agent as Record<string, unknown>;
+
+  // name must be a string if present
+  if (a.name !== undefined) {
+    assertIsString(a.name, `${path}.name`);
   }
 
-  if (agent.mbox && !agent.mbox.startsWith("mailto:")) {
-    throw new ValidationError(`${path}.mbox: must be a mailto: URI`);
+  const ifiCount = countIFIs(a);
+  if (ifiCount === 0) {
+    throw new ValidationError(
+      `${path}: must have exactly one IFI (mbox, mbox_sha1sum, openid, or account), found none`
+    );
   }
-  if (agent.account) {
-    if (!agent.account.homePage || typeof agent.account.homePage !== "string") {
+  if (ifiCount > 1) {
+    throw new ValidationError(
+      `${path}: must have exactly one IFI, found ${ifiCount}`
+    );
+  }
+
+  if (a.mbox !== undefined) {
+    assertIsString(a.mbox, `${path}.mbox`);
+    if (!(a.mbox as string).startsWith("mailto:")) {
+      throw new ValidationError(`${path}.mbox: must be a mailto: IRI`);
+    }
+  }
+  if (a.mbox_sha1sum !== undefined) {
+    assertIsString(a.mbox_sha1sum, `${path}.mbox_sha1sum`);
+  }
+  if (a.openid !== undefined) {
+    assertIsString(a.openid, `${path}.openid`);
+    if (!isValidIRI(a.openid as string)) {
+      throw new ValidationError(`${path}.openid: must be a valid URI`);
+    }
+  }
+  if (a.account !== undefined) {
+    assertIsObject(a.account, `${path}.account`);
+    const acct = a.account as Record<string, unknown>;
+    if (acct.homePage === undefined || acct.homePage === null) {
       throw new ValidationError(`${path}.account.homePage: required and must be a string`);
     }
-    if (!agent.account.name || typeof agent.account.name !== "string") {
+    assertIsString(acct.homePage, `${path}.account.homePage`);
+    if (!isValidIRI(acct.homePage as string)) {
+      throw new ValidationError(`${path}.account.homePage: must be a valid IRL`);
+    }
+    if (acct.name === undefined || acct.name === null) {
       throw new ValidationError(`${path}.account.name: required and must be a string`);
     }
+    assertIsString(acct.name, `${path}.account.name`);
   }
-  if (agent.objectType && agent.objectType !== "Agent") {
-    throw new ValidationError(`${path}.objectType: if present on an agent, must be "Agent"`);
+
+  if (a.objectType !== undefined && a.objectType !== "Agent") {
+    throw new ValidationError(
+      `${path}.objectType: if present on an agent, must be "Agent"`
+    );
   }
 }
 
-function validateGroup(group: Group, path: string): void {
-  if (group.objectType !== "Group") {
+// ── Validate Group ──
+function validateGroup(group: unknown, path: string): void {
+  assertIsObject(group, path);
+  const g = group as Record<string, unknown>;
+
+  if (g.objectType !== "Group") {
     throw new ValidationError(`${path}.objectType: must be "Group"`);
   }
-  const ifiCount = countIFIs(group);
+
+  // name must be a string if present
+  if (g.name !== undefined) {
+    assertIsString(g.name, `${path}.name`);
+  }
+
+  const ifiCount = countIFIs(g);
   // Identified group has IFI, anonymous group has member array
   if (ifiCount === 0) {
     // Anonymous group — must have member array
-    if (!group.member || !Array.isArray(group.member) || group.member.length === 0) {
-      throw new ValidationError(`${path}: anonymous group must have a non-empty member array`);
+    if (!g.member || !Array.isArray(g.member) || g.member.length === 0) {
+      throw new ValidationError(
+        `${path}: anonymous group must have a non-empty member array`
+      );
     }
   }
   if (ifiCount > 1) {
-    throw new ValidationError(`${path}: group must have at most one IFI, found ${ifiCount}`);
+    throw new ValidationError(
+      `${path}: group must have at most one IFI, found ${ifiCount}`
+    );
   }
-  if (group.member) {
-    for (let i = 0; i < group.member.length; i++) {
-      validateAgent(group.member[i], `${path}.member[${i}]`);
+
+  // Validate IFI fields on the group itself (same rules as agent)
+  if (g.mbox !== undefined) {
+    assertIsString(g.mbox, `${path}.mbox`);
+    if (!(g.mbox as string).startsWith("mailto:")) {
+      throw new ValidationError(`${path}.mbox: must be a mailto: IRI`);
+    }
+  }
+  if (g.mbox_sha1sum !== undefined) {
+    assertIsString(g.mbox_sha1sum, `${path}.mbox_sha1sum`);
+  }
+  if (g.openid !== undefined) {
+    assertIsString(g.openid, `${path}.openid`);
+    if (!isValidIRI(g.openid as string)) {
+      throw new ValidationError(`${path}.openid: must be a valid URI`);
+    }
+  }
+  if (g.account !== undefined) {
+    assertIsObject(g.account, `${path}.account`);
+    const acct = g.account as Record<string, unknown>;
+    if (acct.homePage === undefined || acct.homePage === null) {
+      throw new ValidationError(`${path}.account.homePage: required and must be a string`);
+    }
+    assertIsString(acct.homePage, `${path}.account.homePage`);
+    if (!isValidIRI(acct.homePage as string)) {
+      throw new ValidationError(`${path}.account.homePage: must be a valid IRL`);
+    }
+    if (acct.name === undefined || acct.name === null) {
+      throw new ValidationError(`${path}.account.name: required and must be a string`);
+    }
+    assertIsString(acct.name, `${path}.account.name`);
+  }
+
+  if (g.member !== undefined) {
+    if (!Array.isArray(g.member)) {
+      throw new ValidationError(`${path}.member: must be an array`);
+    }
+    for (let i = 0; i < g.member.length; i++) {
+      validateAgent(g.member[i], `${path}.member[${i}]`);
     }
   }
 }
 
-function validateActor(actor: Actor, path: string): void {
-  if (!actor || typeof actor !== "object") {
-    throw new ValidationError(`${path}: must be an object`);
+// ── Validate Actor (Agent or Group) ──
+function validateActor(actor: unknown, path: string): void {
+  // Explicit null/undefined check BEFORE typeof (typeof null === 'object' in JS)
+  if (actor === null || actor === undefined) {
+    throw new ValidationError(`${path}: must be a non-null object`);
   }
-  if ((actor as Group).objectType === "Group") {
-    validateGroup(actor as Group, path);
+  assertIsObject(actor, path);
+  const a = actor as Record<string, unknown>;
+  if (a.objectType === "Group") {
+    validateGroup(actor, path);
   } else {
-    validateAgent(actor as Agent, path);
+    validateAgent(actor, path);
   }
 }
 
 // ── Validate Verb ──
-function validateVerb(verb: Verb, path: string): void {
-  if (!verb || typeof verb !== "object") {
-    throw new ValidationError(`${path}: must be an object`);
-  }
-  if (!verb.id || typeof verb.id !== "string") {
+function validateVerb(verb: unknown, path: string): void {
+  assertIsObject(verb, path);
+  const v = verb as Record<string, unknown>;
+  if (v.id === undefined || v.id === null) {
     throw new ValidationError(`${path}.id: required`);
   }
-  if (!isValidIRI(verb.id)) {
+  assertIsString(v.id, `${path}.id`);
+  if (!isValidIRI(v.id as string)) {
     throw new ValidationError(`${path}.id: must be a valid IRI`);
   }
-  if (verb.display && typeof verb.display !== "object") {
-    throw new ValidationError(`${path}.display: must be a language map object`);
+  if (v.display !== undefined) {
+    validateLanguageMap(v.display, `${path}.display`);
   }
 }
 
-// ── Validate Object ──
-function validateActivity(activity: Activity, path: string): void {
-  if (!activity.id || typeof activity.id !== "string") {
+// ── Validate Activity ──
+function validateActivity(activity: unknown, path: string): void {
+  assertIsObject(activity, path);
+  const act = activity as Record<string, unknown>;
+  if (act.id === undefined || act.id === null) {
     throw new ValidationError(`${path}.id: required for Activity`);
   }
-  if (!isValidIRI(activity.id)) {
+  assertIsString(act.id, `${path}.id`);
+  if (!isValidIRI(act.id as string)) {
     throw new ValidationError(`${path}.id: must be a valid IRI`);
+  }
+
+  if (act.definition !== undefined) {
+    assertIsObject(act.definition, `${path}.definition`);
+    const def = act.definition as Record<string, unknown>;
+
+    if (def.name !== undefined) {
+      validateLanguageMap(def.name, `${path}.definition.name`);
+    }
+    if (def.description !== undefined) {
+      validateLanguageMap(def.description, `${path}.definition.description`);
+    }
+    if (def.interactionType !== undefined) {
+      assertIsString(def.interactionType, `${path}.definition.interactionType`);
+      if (!VALID_INTERACTION_TYPES.has(def.interactionType as string)) {
+        throw new ValidationError(
+          `${path}.definition.interactionType: invalid value "${def.interactionType}". Must be one of: ${Array.from(VALID_INTERACTION_TYPES).join(", ")}`
+        );
+      }
+    }
+    if (def.type !== undefined) {
+      assertIsString(def.type, `${path}.definition.type`);
+      if (!isValidIRI(def.type as string)) {
+        throw new ValidationError(`${path}.definition.type: must be a valid IRI`);
+      }
+    }
+    if (def.moreInfo !== undefined) {
+      assertIsString(def.moreInfo, `${path}.definition.moreInfo`);
+      if (!isValidIRI(def.moreInfo as string)) {
+        throw new ValidationError(`${path}.definition.moreInfo: must be a valid IRL`);
+      }
+    }
   }
 }
 
-function validateStatementRef(ref: StatementRef, path: string): void {
-  if (!ref.id || typeof ref.id !== "string") {
+// ── Validate StatementRef ──
+function validateStatementRef(ref: unknown, path: string): void {
+  assertIsObject(ref, path);
+  const r = ref as Record<string, unknown>;
+  if (r.id === undefined || r.id === null) {
     throw new ValidationError(`${path}.id: required for StatementRef`);
   }
-  if (!isValidUUID(ref.id)) {
+  assertIsString(r.id, `${path}.id`);
+  if (!isValidUUID(r.id as string)) {
     throw new ValidationError(`${path}.id: must be a valid UUID`);
   }
 }
 
-function validateSubStatement(sub: SubStatement, path: string): void {
-  if ((sub as unknown as { id?: string }).id) {
+// ── Validate SubStatement ──
+function validateSubStatement(sub: unknown, path: string): void {
+  assertIsObject(sub, path);
+  const s = sub as Record<string, unknown>;
+
+  if (s.id !== undefined) {
     throw new ValidationError(`${path}: SubStatement must not have an id`);
   }
-  if ((sub as unknown as { stored?: string }).stored) {
-    throw new ValidationError(`${path}: SubStatement must not have a stored property`);
+  if (s.stored !== undefined) {
+    throw new ValidationError(
+      `${path}: SubStatement must not have a stored property`
+    );
   }
-  if ((sub as unknown as { authority?: unknown }).authority) {
-    throw new ValidationError(`${path}: SubStatement must not have an authority property`);
+  if (s.authority !== undefined) {
+    throw new ValidationError(
+      `${path}: SubStatement must not have an authority property`
+    );
   }
-  if ((sub as unknown as { version?: string }).version) {
-    throw new ValidationError(`${path}: SubStatement must not have a version property`);
+  if (s.version !== undefined) {
+    throw new ValidationError(
+      `${path}: SubStatement must not have a version property`
+    );
   }
-  validateActor(sub.actor, `${path}.actor`);
-  validateVerb(sub.verb, `${path}.verb`);
-  validateStatementObject(sub.object, `${path}.object`, true);
+
+  // Required: actor
+  if (s.actor === undefined) {
+    throw new ValidationError(`${path}.actor: required`);
+  }
+  validateActor(s.actor, `${path}.actor`);
+
+  // Required: verb
+  if (s.verb === undefined) {
+    throw new ValidationError(`${path}.verb: required`);
+  }
+  validateVerb(s.verb, `${path}.verb`);
+
+  // Required: object
+  if (s.object === undefined) {
+    throw new ValidationError(`${path}.object: required`);
+  }
+  validateStatementObject(s.object, `${path}.object`, true);
+
+  // Optional: result (full validation)
+  if (s.result !== undefined) {
+    validateResult(s.result, `${path}.result`);
+  }
+
+  // Optional: context (full validation)
+  if (s.context !== undefined) {
+    validateContext(s.context, `${path}.context`);
+  }
+
+  // Optional: timestamp
+  if (s.timestamp !== undefined) {
+    assertIsString(s.timestamp, `${path}.timestamp`);
+    if (!isValidTimestamp(s.timestamp as string)) {
+      throw new ValidationError(
+        `${path}.timestamp: must be a valid ISO 8601 timestamp`
+      );
+    }
+  }
 }
 
+// ── Validate Statement Object ──
 function validateStatementObject(
-  obj: StatementObject,
+  obj: unknown,
   path: string,
   insideSubStatement = false
 ): void {
-  if (!obj || typeof obj !== "object") {
-    throw new ValidationError(`${path}: must be an object`);
-  }
+  assertIsObject(obj, path);
+  const o = obj as Record<string, unknown>;
 
-  const objectType = (obj as { objectType?: string }).objectType || "Activity";
+  const objectType = (o.objectType as string) || "Activity";
 
   switch (objectType) {
     case "Activity":
-      validateActivity(obj as Activity, path);
+      validateActivity(obj, path);
       break;
     case "Agent":
-      validateAgent(obj as Agent, path);
+      validateAgent(obj, path);
       break;
     case "Group":
-      validateGroup(obj as Group, path);
+      validateGroup(obj, path);
       break;
     case "StatementRef":
-      validateStatementRef(obj as StatementRef, path);
+      validateStatementRef(obj, path);
       break;
     case "SubStatement":
       if (insideSubStatement) {
-        throw new ValidationError(`${path}: SubStatement cannot contain another SubStatement`);
+        throw new ValidationError(
+          `${path}: SubStatement cannot contain another SubStatement`
+        );
       }
-      validateSubStatement(obj as SubStatement, path);
+      validateSubStatement(obj, path);
       break;
     default:
-      throw new ValidationError(`${path}.objectType: invalid value "${objectType}"`);
+      throw new ValidationError(
+        `${path}.objectType: invalid value "${objectType}"`
+      );
   }
 }
 
 // ── Validate Score ──
-function validateScore(score: Score, path: string): void {
-  if (score.scaled !== undefined) {
-    if (typeof score.scaled !== "number" || score.scaled < -1 || score.scaled > 1) {
-      throw new ValidationError(`${path}.scaled: must be a number between -1.0 and 1.0`);
+function validateScore(score: unknown, path: string): void {
+  assertIsObject(score, path);
+  const s = score as Record<string, unknown>;
+
+  if (s.scaled !== undefined) {
+    assertIsNumber(s.scaled, `${path}.scaled`);
+    if ((s.scaled as number) < -1 || (s.scaled as number) > 1) {
+      throw new ValidationError(
+        `${path}.scaled: must be a number between -1.0 and 1.0`
+      );
     }
   }
-  if (score.min !== undefined && score.max !== undefined) {
-    if (score.min > score.max) {
+  if (s.raw !== undefined) {
+    assertIsNumber(s.raw, `${path}.raw`);
+  }
+  if (s.min !== undefined) {
+    assertIsNumber(s.min, `${path}.min`);
+  }
+  if (s.max !== undefined) {
+    assertIsNumber(s.max, `${path}.max`);
+  }
+  if (s.min !== undefined && s.max !== undefined) {
+    if ((s.min as number) > (s.max as number)) {
       throw new ValidationError(`${path}: min must be <= max`);
     }
   }
-  if (score.raw !== undefined) {
-    if (score.min !== undefined && score.raw < score.min) {
-      throw new ValidationError(`${path}.raw: must be >= min (${score.min})`);
+  if (s.raw !== undefined) {
+    if (s.min !== undefined && (s.raw as number) < (s.min as number)) {
+      throw new ValidationError(
+        `${path}.raw: must be >= min (${s.min})`
+      );
     }
-    if (score.max !== undefined && score.raw > score.max) {
-      throw new ValidationError(`${path}.raw: must be <= max (${score.max})`);
+    if (s.max !== undefined && (s.raw as number) > (s.max as number)) {
+      throw new ValidationError(
+        `${path}.raw: must be <= max (${s.max})`
+      );
     }
   }
 }
 
 // ── Validate Result ──
-function validateResult(result: Result, path: string): void {
-  if (result.score) {
-    validateScore(result.score, `${path}.score`);
+function validateResult(result: unknown, path: string): void {
+  assertIsObject(result, path);
+  const r = result as Record<string, unknown>;
+
+  if (r.score !== undefined) {
+    validateScore(r.score, `${path}.score`);
   }
-  if (result.duration !== undefined) {
-    if (typeof result.duration !== "string" || !isValidDuration(result.duration)) {
-      throw new ValidationError(`${path}.duration: must be a valid ISO 8601 duration`);
+  if (r.success !== undefined) {
+    assertIsBoolean(r.success, `${path}.success`);
+  }
+  if (r.completion !== undefined) {
+    assertIsBoolean(r.completion, `${path}.completion`);
+  }
+  if (r.response !== undefined) {
+    assertIsString(r.response, `${path}.response`);
+  }
+  if (r.duration !== undefined) {
+    assertIsString(r.duration, `${path}.duration`);
+    if (!isValidDuration(r.duration as string)) {
+      throw new ValidationError(
+        `${path}.duration: must be a valid ISO 8601 duration`
+      );
     }
   }
 }
 
 // ── Validate Context Activities ──
+// Accepts single Activity objects or arrays. Validation only -- normalization
+// (wrapping singles into arrays) is done separately by normalizeStatement.
 function validateContextActivities(
-  ca: ContextActivities,
+  ca: unknown,
   path: string
 ): void {
-  const keys: (keyof ContextActivities)[] = ["parent", "grouping", "category", "other"];
+  assertIsObject(ca, path);
+  const c = ca as Record<string, unknown>;
+  const keys = ["parent", "grouping", "category", "other"] as const;
   for (const key of keys) {
-    if (ca[key]) {
-      if (!Array.isArray(ca[key])) {
-        throw new ValidationError(`${path}.${key}: must be an array`);
+    if (c[key] !== undefined) {
+      if (c[key] === null) {
+        throw new ValidationError(`${path}.${key}: must be an Activity object or array of Activity objects`);
       }
-      for (let i = 0; i < ca[key]!.length; i++) {
-        validateActivity(ca[key]![i], `${path}.${key}[${i}]`);
+      if (Array.isArray(c[key])) {
+        const arr = c[key] as unknown[];
+        for (let i = 0; i < arr.length; i++) {
+          validateActivity(arr[i], `${path}.${key}[${i}]`);
+        }
+      } else if (typeof c[key] === "object") {
+        // Single Activity object — valid per spec, will be wrapped by normalizeStatement
+        validateActivity(c[key], `${path}.${key}`);
+      } else {
+        throw new ValidationError(
+          `${path}.${key}: must be an Activity object or array of Activity objects`
+        );
       }
     }
   }
 }
 
 // ── Validate Context ──
-function validateContext(ctx: Context, path: string): void {
-  if (ctx.registration !== undefined) {
-    if (!isValidUUID(ctx.registration)) {
-      throw new ValidationError(`${path}.registration: must be a valid UUID`);
+function validateContext(ctx: unknown, path: string): void {
+  assertIsObject(ctx, path);
+  const c = ctx as Record<string, unknown>;
+
+  if (c.registration !== undefined) {
+    assertIsString(c.registration, `${path}.registration`);
+    if (!isValidUUID(c.registration as string)) {
+      throw new ValidationError(
+        `${path}.registration: must be a valid UUID`
+      );
     }
   }
-  if (ctx.instructor) {
-    validateActor(ctx.instructor, `${path}.instructor`);
+  if (c.instructor !== undefined) {
+    validateActor(c.instructor, `${path}.instructor`);
   }
-  if (ctx.team) {
-    validateGroup(ctx.team, `${path}.team`);
+  if (c.team !== undefined) {
+    validateGroup(c.team, `${path}.team`);
   }
-  if (ctx.contextActivities) {
-    validateContextActivities(ctx.contextActivities, `${path}.contextActivities`);
+  if (c.contextActivities !== undefined) {
+    validateContextActivities(
+      c.contextActivities,
+      `${path}.contextActivities`
+    );
   }
-  if (ctx.statement) {
-    validateStatementRef(ctx.statement, `${path}.statement`);
+  if (c.revision !== undefined) {
+    assertIsString(c.revision, `${path}.revision`);
+  }
+  if (c.platform !== undefined) {
+    assertIsString(c.platform, `${path}.platform`);
+  }
+  if (c.language !== undefined) {
+    assertIsString(c.language, `${path}.language`);
+  }
+  if (c.statement !== undefined) {
+    validateStatementRef(c.statement, `${path}.statement`);
+  }
+}
+
+// ── Validate Authority ──
+function validateAuthority(authority: unknown, path: string): void {
+  // Explicit null check
+  if (authority === null || authority === undefined) {
+    throw new ValidationError(`${path}: must be a non-null object`);
+  }
+  assertIsObject(authority, path);
+  const a = authority as Record<string, unknown>;
+
+  const objectType = a.objectType as string | undefined;
+
+  if (objectType !== undefined && objectType !== "Agent" && objectType !== "Group") {
+    throw new ValidationError(
+      `${path}.objectType: must be "Agent" or "Group"`
+    );
+  }
+
+  if (objectType === "Group") {
+    // OAuth consumer: Group with exactly 2 members
+    if (!a.member || !Array.isArray(a.member)) {
+      throw new ValidationError(
+        `${path}: authority Group must have a member array`
+      );
+    }
+    if ((a.member as unknown[]).length !== 2) {
+      throw new ValidationError(
+        `${path}: authority Group must have exactly 2 members (OAuth scenario)`
+      );
+    }
+    // Each member must be an Agent with exactly 1 IFI
+    for (let i = 0; i < (a.member as unknown[]).length; i++) {
+      const member = (a.member as unknown[])[i];
+      assertIsObject(member, `${path}.member[${i}]`);
+      const m = member as Record<string, unknown>;
+      if (m.objectType !== undefined && m.objectType !== "Agent") {
+        throw new ValidationError(
+          `${path}.member[${i}].objectType: authority group members must be Agents`
+        );
+      }
+      const mifiCount = countIFIs(m);
+      if (mifiCount !== 1) {
+        throw new ValidationError(
+          `${path}.member[${i}]: must have exactly one IFI, found ${mifiCount}`
+        );
+      }
+      // Validate the agent fields
+      validateAgent(member, `${path}.member[${i}]`);
+    }
+  } else {
+    // Agent authority — must have exactly 1 IFI
+    const ifiCount = countIFIs(a);
+    if (ifiCount !== 1) {
+      throw new ValidationError(
+        `${path}: authority Agent must have exactly one IFI, found ${ifiCount}`
+      );
+    }
+    validateAgent(authority, path);
   }
 }
 
 // ── Validate a single statement ──
-export function validateStatement(stmt: XAPIStatement, index?: number): void {
+export function validateStatement(stmt: unknown, index?: number): void {
   const prefix = index !== undefined ? `statements[${index}]` : "statement";
 
-  if (!stmt || typeof stmt !== "object") {
-    throw new ValidationError(`${prefix}: must be an object`);
+  // Must be a non-null object
+  if (stmt === null || stmt === undefined) {
+    throw new ValidationError(`${prefix}: must be a non-null object`);
   }
+  assertIsObject(stmt, prefix);
+  const s = stmt as Record<string, unknown>;
 
   // ID validation (if provided)
-  if (stmt.id !== undefined) {
-    if (!isValidUUID(stmt.id)) {
+  if (s.id !== undefined) {
+    if (s.id === null) {
+      throw new ValidationError(`${prefix}.id: must be a valid UUID`);
+    }
+    assertIsString(s.id, `${prefix}.id`);
+    if (!isValidUUID(s.id as string)) {
       throw new ValidationError(`${prefix}.id: must be a valid UUID`);
     }
   }
 
   // Required: actor
-  if (!stmt.actor) {
+  if (s.actor === undefined || s.actor === null) {
     throw new ValidationError(`${prefix}.actor: required`);
   }
-  validateActor(stmt.actor, `${prefix}.actor`);
+  validateActor(s.actor, `${prefix}.actor`);
 
   // Required: verb
-  if (!stmt.verb) {
+  if (s.verb === undefined || s.verb === null) {
     throw new ValidationError(`${prefix}.verb: required`);
   }
-  validateVerb(stmt.verb, `${prefix}.verb`);
+  validateVerb(s.verb, `${prefix}.verb`);
 
   // Required: object
-  if (!stmt.object) {
+  if (s.object === undefined || s.object === null) {
     throw new ValidationError(`${prefix}.object: required`);
   }
-  validateStatementObject(stmt.object, `${prefix}.object`);
+  validateStatementObject(s.object, `${prefix}.object`);
 
   // Optional: result
-  if (stmt.result) {
-    validateResult(stmt.result, `${prefix}.result`);
+  if (s.result !== undefined) {
+    validateResult(s.result, `${prefix}.result`);
   }
 
   // Optional: context
-  if (stmt.context) {
-    validateContext(stmt.context, `${prefix}.context`);
+  if (s.context !== undefined) {
+    validateContext(s.context, `${prefix}.context`);
+  }
+
+  // Optional: authority
+  if (s.authority !== undefined) {
+    validateAuthority(s.authority, `${prefix}.authority`);
   }
 
   // Optional: timestamp
-  if (stmt.timestamp !== undefined) {
-    if (!isValidTimestamp(stmt.timestamp)) {
-      throw new ValidationError(`${prefix}.timestamp: must be a valid ISO 8601 timestamp`);
+  if (s.timestamp !== undefined) {
+    assertIsString(s.timestamp, `${prefix}.timestamp`);
+    if (!isValidTimestamp(s.timestamp as string)) {
+      throw new ValidationError(
+        `${prefix}.timestamp: must be a valid ISO 8601 timestamp`
+      );
     }
   }
 
+  // Optional: version
+  if (s.version !== undefined) {
+    assertIsString(s.version, `${prefix}.version`);
+  }
+
   // Voiding checks
-  if (stmt.verb.id === "http://adlnet.gov/expapi/verbs/voided") {
-    const obj = stmt.object as { objectType?: string };
+  const verb = s.verb as Record<string, unknown>;
+  if (verb.id === "http://adlnet.gov/expapi/verbs/voided") {
+    const obj = s.object as Record<string, unknown>;
     if (obj.objectType !== "StatementRef") {
       throw new ValidationError(
         `${prefix}: voiding statement object must be a StatementRef`
@@ -347,11 +738,47 @@ export function validateStatement(stmt: XAPIStatement, index?: number): void {
 }
 
 // ── Validate an array of statements ──
-export function validateStatements(stmts: XAPIStatement[]): void {
+export function validateStatements(stmts: unknown): void {
   if (!Array.isArray(stmts)) {
-    throw new ValidationError("Request body must be a statement object or array");
+    throw new ValidationError(
+      "Request body must be a statement object or array"
+    );
   }
   for (let i = 0; i < stmts.length; i++) {
     validateStatement(stmts[i], stmts.length > 1 ? i : undefined);
   }
+}
+
+// ── Normalize a statement ──
+// Auto-wraps single contextActivities objects into arrays per the xAPI spec.
+// Call this AFTER validation but BEFORE storage.
+export function normalizeStatement(stmt: XAPIStatement): XAPIStatement {
+  if (!stmt.context?.contextActivities) {
+    return stmt;
+  }
+
+  const ca = stmt.context.contextActivities as Record<string, unknown>;
+  const keys = ["parent", "grouping", "category", "other"] as const;
+  let modified = false;
+  const normalizedCA: Record<string, unknown> = { ...ca };
+
+  for (const key of keys) {
+    if (ca[key] !== undefined && !Array.isArray(ca[key])) {
+      // Single Activity object — wrap in array
+      normalizedCA[key] = [ca[key]];
+      modified = true;
+    }
+  }
+
+  if (!modified) {
+    return stmt;
+  }
+
+  return {
+    ...stmt,
+    context: {
+      ...stmt.context,
+      contextActivities: normalizedCA as unknown as ContextActivities,
+    },
+  };
 }

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, isAuthError } from "@/lib/auth/guard";
+import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { getTableClient } from "@/lib/azure/table-client";
 import type { StatementEntity } from "@/lib/lrs/types";
 import type { CredentialEntity } from "@/lib/lrs/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     // Count credentials
     const credTable = await getTableClient("credentials");
     let credentialCount = 0;
@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
       topActors,
     });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     console.error("GET /api/admin/stats error:", e);
     return NextResponse.json(
       { error: true, message: "Failed to fetch stats" },

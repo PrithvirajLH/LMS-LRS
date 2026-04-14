@@ -1,4 +1,4 @@
-import { requireAuth, isAuthError } from "@/lib/auth/guard";
+import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import {
   createEnrollment,
@@ -14,7 +14,7 @@ import { logger } from "@/lib/logger";
 // POST /api/admin/enrollments — Enroll user(s) in a course
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const body = await request.json();
 
     // Bulk enroll: { userIds: [...], courseId, courseTitle, assignedDate, dueDate }
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(enrollment, { status: 201 });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("POST /api/admin/enrollments failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to create enrollment" }, { status: 500 });
   }
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
 // GET /api/admin/enrollments — List enrollments (optionally by userId)
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const userId = request.nextUrl.searchParams.get("userId");
 
     if (userId) {
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest) {
     const enrollments = await getAllEnrollments();
     return NextResponse.json({ enrollments });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("GET /api/admin/enrollments failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to list enrollments" }, { status: 500 });
   }
@@ -91,7 +93,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/admin/enrollments — Mark enrollment as completed
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const body = await request.json();
     const { userId, courseId, completedDate, score, timeSpent } = body;
 
@@ -109,6 +111,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ userId, courseId, status: "completed" });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("PATCH /api/admin/enrollments failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to update enrollment" }, { status: 500 });
   }

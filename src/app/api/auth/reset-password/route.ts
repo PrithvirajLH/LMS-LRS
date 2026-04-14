@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const { token, password } = await request.json();
     if (!token || !password) return NextResponse.json({ error: true, message: "Token and password are required" }, { status: 400 });
-    if (password.length < 6) return NextResponse.json({ error: true, message: "Password must be at least 6 characters" }, { status: 400 });
+    // Password policy is enforced in resetPasswordWithToken via validatePassword
 
     const result = await resetPasswordWithToken(token, password);
 

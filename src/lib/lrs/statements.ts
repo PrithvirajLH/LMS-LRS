@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getTableClient } from "@/lib/azure/table-client";
 import { uploadBlob, downloadBlob } from "@/lib/azure/blob-client";
-import { validateStatement, ValidationError } from "./validation";
+import { validateStatement, normalizeStatement, ValidationError } from "./validation";
 import { storageQueue } from "@/lib/queue";
 import { logger } from "@/lib/logger";
 import type {
@@ -109,6 +109,26 @@ function decodeCursor(encoded: string): PaginationCursor | null {
   }
 }
 
+// ── Parse Accept-Language header to extract preferred language tag ──
+function parseAcceptLanguage(header: string): string {
+  // Split by comma, parse quality values, return highest quality non-wildcard tag
+  const parts = header.split(",").map((part) => {
+    const [tag, ...params] = part.trim().split(";");
+    let q = 1;
+    for (const param of params) {
+      const match = param.trim().match(/^q=(\d+(?:\.\d+)?)$/);
+      if (match) q = parseFloat(match[1]);
+    }
+    return { tag: tag.trim(), q };
+  });
+  // Sort by quality descending, pick first non-wildcard
+  parts.sort((a, b) => b.q - a.q);
+  for (const p of parts) {
+    if (p.tag && p.tag !== "*") return p.tag;
+  }
+  return "en";
+}
+
 // ── Format statement for response ──
 function formatStatement(
   stmt: XAPIStatement,
@@ -133,7 +153,10 @@ function formatStatement(
   }
 
   if (format === "canonical") {
-    return filterLanguageMaps(stmt, acceptLanguage || "en") as Record<string, unknown>;
+    // Parse Accept-Language to get the preferred language tag
+    // e.g. "en-US,en;q=0.9,*;q=0.5" -> "en-US"
+    const lang = parseAcceptLanguage(acceptLanguage || "en");
+    return filterLanguageMaps(stmt, lang) as Record<string, unknown>;
   }
 
   return stmt;
@@ -215,12 +238,13 @@ function extractAllActivityIds(stmt: XAPIStatement): string[] {
     if (id) ids.push(id);
   }
 
-  // Context activities
+  // Context activities — handle both array and single-object forms
   if (stmt.context?.contextActivities) {
     const ca = stmt.context.contextActivities;
     for (const group of [ca.parent, ca.grouping, ca.category, ca.other]) {
       if (group) {
-        for (const act of group) {
+        const items = Array.isArray(group) ? group : [group];
+        for (const act of items) {
           if (act.id) ids.push(act.id);
         }
       }
@@ -243,10 +267,13 @@ export async function storeStatements(
   const conflicts: string[] = [];
 
   for (let i = 0; i < incoming.length; i++) {
-    const stmt = incoming[i];
+    let stmt = incoming[i];
 
     // Validate
     validateStatement(stmt, incoming.length > 1 ? i : undefined);
+
+    // Normalize (e.g., wrap single contextActivities objects into arrays)
+    stmt = normalizeStatement(stmt);
 
     // Assign server fields
     const statementId = stmt.id || uuidv4();

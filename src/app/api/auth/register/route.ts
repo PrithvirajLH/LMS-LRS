@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { registerUser, createSession, getSession } from "@/lib/auth/session";
+import { registerUser, createSession, getSession, validatePassword } from "@/lib/auth/session";
 import { authLimiter, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, employeeId, password, facility, department, position, role } = body;
+    const { name, email, employeeId, password, facility, department, position } = body;
 
     if (!name || !email || !employeeId || !password || !facility) {
       return NextResponse.json(
@@ -24,9 +24,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (password.length < 6) {
+    const pwError = validatePassword(password);
+    if (pwError) {
       return NextResponse.json(
-        { error: true, message: "Password must be at least 6 characters" },
+        { error: true, message: pwError },
         { status: 400 }
       );
     }

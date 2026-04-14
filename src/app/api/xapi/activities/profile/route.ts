@@ -20,6 +20,51 @@ async function _POST(request: NextRequest) {
   return _postHandler(request);
 }
 
+// HEAD /api/xapi/activities/profile — same as GET but no body
+export async function HEAD(request: NextRequest) {
+  try {
+    const vErr = validateVersionHeader(request.headers.get("X-Experience-API-Version"));
+    if (vErr) return xapiError(vErr, 400);
+    const auth = await authenticateRequest(request.headers.get("Authorization"));
+    if (!auth.authenticated) return xapiError(auth.message, auth.status);
+
+    const activityId = request.nextUrl.searchParams.get("activityId");
+    const profileId = request.nextUrl.searchParams.get("profileId");
+    if (!activityId) return xapiError("activityId parameter is required", 400);
+
+    if (!profileId) {
+      return new NextResponse(null, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Experience-API-Version": "1.0.3",
+        },
+      });
+    }
+
+    const doc = await getDocument({
+      docType: "activity_profile",
+      activityId,
+      profileId,
+    });
+
+    if (!doc) return xapiError("Activity profile document not found", 404);
+
+    return new NextResponse(null, {
+      status: 200,
+      headers: {
+        "Content-Type": doc.contentType,
+        "ETag": `"${doc.etag}"`,
+        "Last-Modified": new Date(doc.updatedAt).toUTCString(),
+        "X-Experience-API-Version": "1.0.3",
+      },
+    });
+  } catch (e) {
+    console.error("HEAD /xapi/activities/profile error:", e);
+    return xapiError("Internal server error", 500);
+  }
+}
+
 // PUT /api/xapi/activities/profile
 export async function PUT(request: NextRequest) {
   try {
@@ -33,8 +78,17 @@ export async function PUT(request: NextRequest) {
     if (!activityId) return xapiError("activityId parameter is required", 400);
     if (!profileId) return xapiError("profileId parameter is required", 400);
 
-    const content = await request.text();
-    const contentType = request.headers.get("Content-Type") || "application/octet-stream";
+    let content: string;
+    const rawContentType = request.headers.get("Content-Type") || "application/octet-stream";
+    if (rawContentType.includes("application/x-www-form-urlencoded")) {
+      const formData = await request.formData();
+      content = (formData.get("content") as string) || "";
+    } else {
+      content = await request.text();
+    }
+    const contentType = rawContentType.includes("application/x-www-form-urlencoded")
+      ? "application/octet-stream"
+      : rawContentType;
 
     const result = await putDocument({
       docType: "activity_profile",

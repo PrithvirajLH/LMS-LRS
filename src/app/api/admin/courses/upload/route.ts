@@ -1,4 +1,4 @@
-import { requireAuth, isAuthError } from "@/lib/auth/guard";
+import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { uploadCourseZip } from "@/lib/courses/course-storage";
 import { audit } from "@/lib/audit";
@@ -8,7 +8,7 @@ import { logger } from "@/lib/logger";
 // POST /api/admin/courses/upload — Upload a Storyline ZIP
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request, ["instructor", "admin"]); if (isAuthError(auth)) return auth;
+    const auth = await requireAuth(request, ["instructor", "admin"]);
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (e) {
+    const authResp = handleAuthError(e); if (authResp) return authResp;
     logger.error("Course upload failed", { error: e });
     const message = e instanceof Error ? e.message : "Failed to upload course";
     return NextResponse.json({ error: true, message }, { status: 500 });

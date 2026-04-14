@@ -26,7 +26,7 @@ function ResetForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirm) { setError("Passwords do not match"); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
+    if (password.length < 12 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) { setError("Password must be at least 12 characters with uppercase, lowercase, and a number"); return; }
 
     setLoading(true);
     setError(null);
@@ -90,7 +90,7 @@ function ResetForm() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label style={{ fontFamily: "var(--font-label)", fontSize: "9px", letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-body)", display: "block", marginBottom: "6px" }}>New Password</label>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Minimum 6 characters"
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Min 12 chars, upper + lower + number"
                   className="w-full rounded-lg px-4 py-3.5 outline-none" style={{ fontFamily: "var(--font-body)", fontSize: "15px", color: "var(--text-primary)", backgroundColor: "var(--bg-raised)", border: "1px solid var(--border-default)" }} />
               </div>
               <div>
