@@ -40,21 +40,17 @@ export default function ManageCoursesPage() {
   useEffect(() => { loadCourses(); }, []);
 
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
-  async function handleDelete(courseId: string, title: string) {
-    if (!confirm(`Are you sure you want to delete "${title}"?\n\nThis will permanently remove:\n• All course files from storage\n• All learner enrollments\n\nThis cannot be undone.`)) return;
-    setDeleting(courseId);
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(deleteTarget.id);
+    setDeleteTarget(null);
     try {
-      const res = await fetch(`/api/admin/courses?courseId=${encodeURIComponent(courseId)}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/courses?courseId=${encodeURIComponent(deleteTarget.id)}`, { method: "DELETE" });
       const data = await res.json();
-      if (data.error) {
-        alert(data.message);
-      } else {
-        loadCourses();
-      }
-    } catch {
-      alert("Failed to delete course");
-    }
+      if (!data.error) loadCourses();
+    } catch { /* silently fail */ }
     setDeleting(null);
   }
 
@@ -215,7 +211,7 @@ export default function ManageCoursesPage() {
                         <IconExternalLink size={16} style={{ color: "var(--text-muted)" }} />
                       </a>
                       <button
-                        onClick={() => handleDelete(course.rowKey, course.title)}
+                        onClick={() => setDeleteTarget({ id: course.rowKey, title: course.title })}
                         disabled={deleting === course.rowKey}
                         className="rounded-lg p-2 transition-colors duration-150 hover:bg-red-50"
                         title="Delete course"
@@ -234,6 +230,72 @@ export default function ManageCoursesPage() {
           </table>
         )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setDeleteTarget(null)}>
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          {/* Modal */}
+          <div
+            className="relative rounded-2xl p-8 w-full max-w-md shadow-2xl"
+            style={{ backgroundColor: "var(--bg-raised)", border: "1px solid var(--border-default)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+              style={{ backgroundColor: "rgba(192, 74, 64, 0.1)" }}
+            >
+              <IconTrash size={22} style={{ color: "#C04A40" }} stroke={1.5} />
+            </div>
+
+            {/* Title */}
+            <h3 style={{ fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "20px", color: "var(--text-primary)" }}>
+              Delete Course
+            </h3>
+
+            {/* Course name */}
+            <p className="mt-2" style={{ fontFamily: "var(--font-body)", fontSize: "14px", color: "var(--text-body)" }}>
+              Are you sure you want to delete <strong>{deleteTarget.title}</strong>?
+            </p>
+
+            {/* Warning */}
+            <div
+              className="mt-4 rounded-xl p-4"
+              style={{ backgroundColor: "rgba(192, 74, 64, 0.06)", border: "1px solid rgba(192, 74, 64, 0.15)" }}
+            >
+              <p style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "#C04A40", lineHeight: 1.6 }}>
+                This will permanently remove all course files from storage and all learner enrollments. This action cannot be undone.
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center justify-end gap-3 mt-6">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-[5px] px-5 py-2.5 transition-colors duration-150"
+                style={{
+                  fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase",
+                  backgroundColor: "var(--bg-surface)", color: "var(--text-body)", border: "1px solid var(--border-default)",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="rounded-[5px] px-5 py-2.5 transition-colors duration-150 hover:opacity-90"
+                style={{
+                  fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase",
+                  backgroundColor: "#C04A40", color: "#fff",
+                }}
+              >
+                Delete Course
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
