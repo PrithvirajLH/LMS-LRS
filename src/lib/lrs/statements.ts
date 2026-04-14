@@ -266,11 +266,14 @@ export async function storeStatements(
   const ids: string[] = [];
   const conflicts: string[] = [];
 
+  // ── BATCH ATOMICITY: validate ALL statements BEFORE storing any ──
+  // If any statement in the batch is invalid, none should be stored.
+  for (let i = 0; i < incoming.length; i++) {
+    validateStatement(incoming[i], incoming.length > 1 ? i : undefined);
+  }
+
   for (let i = 0; i < incoming.length; i++) {
     let stmt = incoming[i];
-
-    // Validate
-    validateStatement(stmt, incoming.length > 1 ? i : undefined);
 
     // Normalize (e.g., wrap single contextActivities objects into arrays)
     stmt = normalizeStatement(stmt);
@@ -537,6 +540,13 @@ export async function getStatements(
       matchedEntities.push(entity);
       if (matchedEntities.length >= limit + 1) break;
     }
+  }
+
+  // When ascending=true, we need to reverse the results because Azure Table Storage
+  // returns entities sorted by RowKey ascending, and our RowKeys use reverseTimestamp
+  // (newest = smallest RowKey). So default order is newest-first. We reverse for ascending.
+  if (params.ascending) {
+    matchedEntities.reverse();
   }
 
   // Determine if there's a next page

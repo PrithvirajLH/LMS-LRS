@@ -96,11 +96,68 @@ function isValidDuration(value: string): boolean {
   return true;
 }
 
+// ── BCP47 language tag validation ──
+const BCP47_RE = /^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$/;
+
+function isValidLanguageTag(tag: string): boolean {
+  if (!tag || !BCP47_RE.test(tag)) return false;
+  // Check for repeated singleton subtags (single-letter/digit subtags that appear more than once)
+  const parts = tag.split("-");
+  const singletons: Set<string> = new Set();
+  for (let i = 1; i < parts.length; i++) {
+    if (parts[i].length === 1) {
+      const lower = parts[i].toLowerCase();
+      if (singletons.has(lower)) return false; // duplicate singleton
+      singletons.add(lower);
+    }
+  }
+  return true;
+}
+
+// ── Unknown property rejection helper ──
+function rejectUnknownProperties(
+  obj: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  path: string
+): void {
+  for (const key of Object.keys(obj)) {
+    if (!allowed.has(key)) {
+      throw new ValidationError(`${path}: unknown property "${key}"`);
+    }
+  }
+}
+
+// ── Known property sets per xAPI spec ──
+const STATEMENT_PROPS = new Set(["id", "actor", "verb", "object", "result", "context", "timestamp", "stored", "authority", "version", "attachments"]);
+const AGENT_PROPS = new Set(["objectType", "name", "mbox", "mbox_sha1sum", "openid", "account"]);
+const GROUP_PROPS = new Set(["objectType", "name", "mbox", "mbox_sha1sum", "openid", "account", "member"]);
+const VERB_PROPS = new Set(["id", "display"]);
+const ACTIVITY_PROPS = new Set(["objectType", "id", "definition"]);
+const ACTIVITY_DEF_PROPS = new Set(["name", "description", "type", "moreInfo", "interactionType", "correctResponsesPattern", "choices", "scale", "source", "target", "steps", "extensions"]);
+const RESULT_PROPS = new Set(["score", "success", "completion", "response", "duration", "extensions"]);
+const SCORE_PROPS = new Set(["scaled", "raw", "min", "max"]);
+const CONTEXT_PROPS = new Set(["registration", "instructor", "team", "contextActivities", "revision", "platform", "language", "statement", "extensions"]);
+const CONTEXT_ACTIVITIES_PROPS = new Set(["parent", "grouping", "category", "other"]);
+const STATEMENT_REF_PROPS = new Set(["objectType", "id"]);
+const SUB_STATEMENT_PROPS = new Set(["objectType", "actor", "verb", "object", "result", "context", "timestamp", "attachments"]);
+const ACCOUNT_PROPS = new Set(["homePage", "name"]);
+const ATTACHMENT_PROPS = new Set(["usageType", "display", "description", "contentType", "length", "sha2", "fileUrl"]);
+
+// ── Mbox email validation ──
+const MBOX_RE = /^mailto:[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+function isValidMbox(value: string): boolean {
+  return MBOX_RE.test(value);
+}
+
 // ── Validate a LanguageMap ──
 function validateLanguageMap(value: unknown, path: string): void {
   assertIsObject(value, path);
   const map = value as Record<string, unknown>;
   for (const key of Object.keys(map)) {
+    if (!isValidLanguageTag(key)) {
+      throw new ValidationError(`${path}["${key}"]: invalid language tag`);
+    }
     if (typeof map[key] !== "string") {
       throw new ValidationError(`${path}["${key}"]: language map values must be strings`);
     }
@@ -138,6 +195,9 @@ function validateAgent(agent: unknown, path: string): void {
   assertIsObject(agent, path);
   const a = agent as Record<string, unknown>;
 
+  // Reject unknown properties
+  rejectUnknownProperties(a, AGENT_PROPS, path);
+
   // name must be a string if present
   if (a.name !== undefined) {
     assertIsString(a.name, `${path}.name`);
@@ -157,8 +217,8 @@ function validateAgent(agent: unknown, path: string): void {
 
   if (a.mbox !== undefined) {
     assertIsString(a.mbox, `${path}.mbox`);
-    if (!(a.mbox as string).startsWith("mailto:")) {
-      throw new ValidationError(`${path}.mbox: must be a mailto: IRI`);
+    if (!isValidMbox(a.mbox as string)) {
+      throw new ValidationError(`${path}.mbox: must be a valid mailto: IRI (mailto:user@example.com)`);
     }
   }
   if (a.mbox_sha1sum !== undefined) {
@@ -173,6 +233,7 @@ function validateAgent(agent: unknown, path: string): void {
   if (a.account !== undefined) {
     assertIsObject(a.account, `${path}.account`);
     const acct = a.account as Record<string, unknown>;
+    rejectUnknownProperties(acct, ACCOUNT_PROPS, `${path}.account`);
     if (acct.homePage === undefined || acct.homePage === null) {
       throw new ValidationError(`${path}.account.homePage: required and must be a string`);
     }
@@ -197,6 +258,9 @@ function validateAgent(agent: unknown, path: string): void {
 function validateGroup(group: unknown, path: string): void {
   assertIsObject(group, path);
   const g = group as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(g, GROUP_PROPS, path);
 
   if (g.objectType !== "Group") {
     throw new ValidationError(`${path}.objectType: must be "Group"`);
@@ -226,8 +290,8 @@ function validateGroup(group: unknown, path: string): void {
   // Validate IFI fields on the group itself (same rules as agent)
   if (g.mbox !== undefined) {
     assertIsString(g.mbox, `${path}.mbox`);
-    if (!(g.mbox as string).startsWith("mailto:")) {
-      throw new ValidationError(`${path}.mbox: must be a mailto: IRI`);
+    if (!isValidMbox(g.mbox as string)) {
+      throw new ValidationError(`${path}.mbox: must be a valid mailto: IRI (mailto:user@example.com)`);
     }
   }
   if (g.mbox_sha1sum !== undefined) {
@@ -242,6 +306,7 @@ function validateGroup(group: unknown, path: string): void {
   if (g.account !== undefined) {
     assertIsObject(g.account, `${path}.account`);
     const acct = g.account as Record<string, unknown>;
+    rejectUnknownProperties(acct, ACCOUNT_PROPS, `${path}.account`);
     if (acct.homePage === undefined || acct.homePage === null) {
       throw new ValidationError(`${path}.account.homePage: required and must be a string`);
     }
@@ -284,6 +349,10 @@ function validateActor(actor: unknown, path: string): void {
 function validateVerb(verb: unknown, path: string): void {
   assertIsObject(verb, path);
   const v = verb as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(v, VERB_PROPS, path);
+
   if (v.id === undefined || v.id === null) {
     throw new ValidationError(`${path}.id: required`);
   }
@@ -300,6 +369,10 @@ function validateVerb(verb: unknown, path: string): void {
 function validateActivity(activity: unknown, path: string): void {
   assertIsObject(activity, path);
   const act = activity as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(act, ACTIVITY_PROPS, path);
+
   if (act.id === undefined || act.id === null) {
     throw new ValidationError(`${path}.id: required for Activity`);
   }
@@ -311,6 +384,9 @@ function validateActivity(activity: unknown, path: string): void {
   if (act.definition !== undefined) {
     assertIsObject(act.definition, `${path}.definition`);
     const def = act.definition as Record<string, unknown>;
+
+    // Reject unknown properties on definition
+    rejectUnknownProperties(def, ACTIVITY_DEF_PROPS, `${path}.definition`);
 
     if (def.name !== undefined) {
       validateLanguageMap(def.name, `${path}.definition.name`);
@@ -345,6 +421,10 @@ function validateActivity(activity: unknown, path: string): void {
 function validateStatementRef(ref: unknown, path: string): void {
   assertIsObject(ref, path);
   const r = ref as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(r, STATEMENT_REF_PROPS, path);
+
   if (r.id === undefined || r.id === null) {
     throw new ValidationError(`${path}.id: required for StatementRef`);
   }
@@ -358,6 +438,9 @@ function validateStatementRef(ref: unknown, path: string): void {
 function validateSubStatement(sub: unknown, path: string): void {
   assertIsObject(sub, path);
   const s = sub as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(s, SUB_STATEMENT_PROPS, path);
 
   if (s.id !== undefined) {
     throw new ValidationError(`${path}: SubStatement must not have an id`);
@@ -415,6 +498,16 @@ function validateSubStatement(sub: unknown, path: string): void {
       );
     }
   }
+
+  // Optional: attachments
+  if (s.attachments !== undefined) {
+    if (!Array.isArray(s.attachments)) {
+      throw new ValidationError(`${path}.attachments: must be an array`);
+    }
+    for (let i = 0; i < s.attachments.length; i++) {
+      validateAttachment(s.attachments[i], `${path}.attachments[${i}]`);
+    }
+  }
 }
 
 // ── Validate Statement Object ──
@@ -461,6 +554,9 @@ function validateScore(score: unknown, path: string): void {
   assertIsObject(score, path);
   const s = score as Record<string, unknown>;
 
+  // Reject unknown properties
+  rejectUnknownProperties(s, SCORE_PROPS, path);
+
   if (s.scaled !== undefined) {
     assertIsNumber(s.scaled, `${path}.scaled`);
     if ((s.scaled as number) < -1 || (s.scaled as number) > 1) {
@@ -502,6 +598,9 @@ function validateResult(result: unknown, path: string): void {
   assertIsObject(result, path);
   const r = result as Record<string, unknown>;
 
+  // Reject unknown properties
+  rejectUnknownProperties(r, RESULT_PROPS, path);
+
   if (r.score !== undefined) {
     validateScore(r.score, `${path}.score`);
   }
@@ -533,6 +632,10 @@ function validateContextActivities(
 ): void {
   assertIsObject(ca, path);
   const c = ca as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(c, CONTEXT_ACTIVITIES_PROPS, path);
+
   const keys = ["parent", "grouping", "category", "other"] as const;
   for (const key of keys) {
     if (c[key] !== undefined) {
@@ -560,6 +663,9 @@ function validateContextActivities(
 function validateContext(ctx: unknown, path: string): void {
   assertIsObject(ctx, path);
   const c = ctx as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(c, CONTEXT_PROPS, path);
 
   if (c.registration !== undefined) {
     assertIsString(c.registration, `${path}.registration`);
@@ -589,6 +695,9 @@ function validateContext(ctx: unknown, path: string): void {
   }
   if (c.language !== undefined) {
     assertIsString(c.language, `${path}.language`);
+    if (!isValidLanguageTag(c.language as string)) {
+      throw new ValidationError(`${path}.language: must be a valid BCP47 language tag`);
+    }
   }
   if (c.statement !== undefined) {
     validateStatementRef(c.statement, `${path}.statement`);
@@ -655,6 +764,54 @@ function validateAuthority(authority: unknown, path: string): void {
   }
 }
 
+// ── Validate Attachment ──
+function validateAttachment(att: unknown, path: string): void {
+  assertIsObject(att, path);
+  const a = att as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(a, ATTACHMENT_PROPS, path);
+
+  if (a.usageType === undefined) {
+    throw new ValidationError(`${path}.usageType: required`);
+  }
+  assertIsString(a.usageType, `${path}.usageType`);
+  if (!isValidIRI(a.usageType as string)) {
+    throw new ValidationError(`${path}.usageType: must be a valid IRI`);
+  }
+
+  if (a.display === undefined) {
+    throw new ValidationError(`${path}.display: required`);
+  }
+  validateLanguageMap(a.display, `${path}.display`);
+
+  if (a.description !== undefined) {
+    validateLanguageMap(a.description, `${path}.description`);
+  }
+
+  if (a.contentType === undefined) {
+    throw new ValidationError(`${path}.contentType: required`);
+  }
+  assertIsString(a.contentType, `${path}.contentType`);
+
+  if (a.length === undefined) {
+    throw new ValidationError(`${path}.length: required`);
+  }
+  assertIsNumber(a.length, `${path}.length`);
+
+  if (a.sha2 === undefined) {
+    throw new ValidationError(`${path}.sha2: required`);
+  }
+  assertIsString(a.sha2, `${path}.sha2`);
+
+  if (a.fileUrl !== undefined) {
+    assertIsString(a.fileUrl, `${path}.fileUrl`);
+    if (!isValidIRI(a.fileUrl as string)) {
+      throw new ValidationError(`${path}.fileUrl: must be a valid IRL`);
+    }
+  }
+}
+
 // ── Validate a single statement ──
 export function validateStatement(stmt: unknown, index?: number): void {
   const prefix = index !== undefined ? `statements[${index}]` : "statement";
@@ -665,6 +822,9 @@ export function validateStatement(stmt: unknown, index?: number): void {
   }
   assertIsObject(stmt, prefix);
   const s = stmt as Record<string, unknown>;
+
+  // Reject unknown properties
+  rejectUnknownProperties(s, STATEMENT_PROPS, prefix);
 
   // ID validation (if provided)
   if (s.id !== undefined) {
@@ -723,6 +883,16 @@ export function validateStatement(stmt: unknown, index?: number): void {
   // Optional: version
   if (s.version !== undefined) {
     assertIsString(s.version, `${prefix}.version`);
+  }
+
+  // Optional: attachments
+  if (s.attachments !== undefined) {
+    if (!Array.isArray(s.attachments)) {
+      throw new ValidationError(`${prefix}.attachments: must be an array`);
+    }
+    for (let i = 0; i < s.attachments.length; i++) {
+      validateAttachment(s.attachments[i], `${prefix}.attachments[${i}]`);
+    }
   }
 
   // Voiding checks

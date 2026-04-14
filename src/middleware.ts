@@ -60,7 +60,7 @@ export function middleware(request: NextRequest) {
     const methodOverride = request.nextUrl.searchParams.get("method");
     if (request.method === "POST" && methodOverride) {
       const override = methodOverride.toUpperCase();
-      if (["PUT", "GET", "DELETE"].includes(override)) {
+      if (["PUT", "GET", "DELETE", "HEAD"].includes(override)) {
         const url = request.nextUrl.clone();
         url.searchParams.delete("method");
         const headers = new Headers(request.headers);

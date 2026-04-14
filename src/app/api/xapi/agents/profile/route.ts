@@ -14,7 +14,10 @@ import type { Actor } from "@/lib/lrs/types";
 function parseAgent(agentStr: string | null): Actor | null {
   if (!agentStr) return null;
   try {
-    return JSON.parse(agentStr) as Actor;
+    const parsed = JSON.parse(agentStr);
+    // Must be a non-null object (not an array, string, number, etc.)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as Actor;
   } catch {
     return null;
   }
@@ -27,6 +30,7 @@ async function _POST(request: NextRequest) {
   if (effective === "PUT") return PUT(request);
   if (effective === "GET") return GET(request);
   if (effective === "DELETE") return DELETE(request);
+  if (effective === "HEAD") return HEAD(request);
   return _postHandler(request);
 }
 
@@ -98,6 +102,13 @@ export async function PUT(request: NextRequest) {
     const rawContentType = request.headers.get("Content-Type") || "application/octet-stream";
     if (rawContentType.includes("application/x-www-form-urlencoded")) {
       const formData = await request.formData();
+      // Reject extra form fields beyond "content" per xAPI alternate request syntax
+      const allowedFields = new Set(["content"]);
+      for (const key of formData.keys()) {
+        if (!allowedFields.has(key)) {
+          return xapiError("Alternate request syntax must not contain extra information beyond 'content'", 400);
+        }
+      }
       content = (formData.get("content") as string) || "";
     } else {
       content = await request.text();
@@ -176,7 +187,11 @@ export async function GET(request: NextRequest) {
 
     // Without profileId — list all profileIds
     if (!profileId) {
-      const since = request.nextUrl.searchParams.get("since") || undefined;
+      const sinceRaw = request.nextUrl.searchParams.get("since") || undefined;
+      if (sinceRaw && isNaN(Date.parse(sinceRaw))) {
+        return xapiError("since parameter must be a valid ISO 8601 timestamp", 400);
+      }
+      const since = sinceRaw;
       const ids = await listDocumentIds({
         docType: "agent_profile",
         agent,

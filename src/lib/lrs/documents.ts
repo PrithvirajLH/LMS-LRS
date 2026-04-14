@@ -58,10 +58,7 @@ function buildDocKeys(params: {
 
 // ── Generate ETag from content ──
 function generateETag(content: string | Buffer): string {
-  return createHash("sha256")
-    .update(content)
-    .digest("hex")
-    .slice(0, 32);
+  return createHash("sha1").update(content).digest("hex");
 }
 
 // ── Put document (overwrite) ──
@@ -86,8 +83,11 @@ export async function putDocument(params: {
     return { etag: "", status: 412, error: "Document already exists (If-None-Match: *)" };
   }
 
-  if (params.ifMatch && existing && existing.docEtag !== params.ifMatch) {
-    return { etag: "", status: 409, error: "ETag mismatch — document was modified by another client" };
+  // Strip surrounding quotes from If-Match value (clients send "etag_value")
+  const ifMatchValue = params.ifMatch?.replace(/^"|"$/g, "");
+
+  if (ifMatchValue && existing && existing.docEtag !== ifMatchValue) {
+    return { etag: "", status: 412, error: "ETag mismatch — document was modified by another client (Precondition Failed)" };
   }
 
   // If no concurrency headers provided, allow upsert (Storyline doesn't send If-Match)
@@ -320,8 +320,10 @@ export async function deleteDocument(params: {
     return { status: 204 };
   }
 
-  if (params.ifMatch && existing.docEtag !== params.ifMatch) {
-    return { status: 409, error: "ETag mismatch" };
+  // Strip surrounding quotes from If-Match value
+  const ifMatchValue = params.ifMatch?.replace(/^"|"$/g, "");
+  if (ifMatchValue && existing.docEtag !== ifMatchValue) {
+    return { status: 412, error: "ETag mismatch (Precondition Failed)" };
   }
 
   await table.deleteEntity(partitionKey, rowKey);

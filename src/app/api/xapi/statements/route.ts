@@ -4,7 +4,7 @@ import { validateVersionHeader, xapiResponse, xapiError } from "@/lib/lrs/header
 import { storeStatements, getStatements } from "@/lib/lrs/statements";
 import { ValidationError } from "@/lib/lrs/validation";
 import { getEffectiveMethod } from "@/lib/lrs/method-override";
-import { parseMultipartMixed, storeAttachment, validateAttachments } from "@/lib/lrs/attachments";
+import { parseMultipartMixed, storeAttachment, validateAttachments, buildMultipartResponse } from "@/lib/lrs/attachments";
 import { xapiLimiter } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import type { XAPIStatement, StatementQueryParams } from "@/lib/lrs/types";
@@ -116,6 +116,13 @@ export async function PUT(request: NextRequest) {
       if (contentType.includes("application/x-www-form-urlencoded")) {
         // Method override: PUT-as-POST with url-encoded body
         const formData = await request.formData();
+        // Reject extra form fields beyond "content" per xAPI alternate request syntax
+        const allowedFields = new Set(["content"]);
+        for (const key of formData.keys()) {
+          if (!allowedFields.has(key)) {
+            return xapiError("Alternate request syntax must not contain extra information beyond 'content'", 400);
+          }
+        }
         const content = formData.get("content") as string;
         body = content ? JSON.parse(content) : null;
       } else {
@@ -151,6 +158,19 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// Known xAPI GET query parameters
+const KNOWN_GET_PARAMS = new Set([
+  "statementId", "voidedStatementId", "agent", "verb", "activity",
+  "registration", "related_activities", "related_agents", "since",
+  "until", "limit", "format", "ascending", "attachments", "from",
+]);
+
+// Parameters that CANNOT be combined with statementId / voidedStatementId
+const SINGLE_STMT_FORBIDDEN_PARAMS = new Set([
+  "agent", "verb", "activity", "registration", "since", "until",
+  "limit", "ascending", "related_activities", "related_agents",
+]);
+
 // GET /api/xapi/statements — Query statements
 export async function GET(request: NextRequest) {
   try {
@@ -163,6 +183,14 @@ export async function GET(request: NextRequest) {
     if (!auth.authenticated) return xapiError(auth.message, auth.status);
 
     const url = request.nextUrl;
+
+    // Reject unknown query parameters
+    for (const key of url.searchParams.keys()) {
+      if (!KNOWN_GET_PARAMS.has(key)) {
+        return xapiError(`Unknown query parameter: ${key}`, 400);
+      }
+    }
+
     const params: StatementQueryParams = {
       statementId: url.searchParams.get("statementId") || undefined,
       voidedStatementId: url.searchParams.get("voidedStatementId") || undefined,
@@ -188,15 +216,99 @@ export async function GET(request: NextRequest) {
       return xapiError("Cannot use both statementId and voidedStatementId", 400);
     }
 
+    // When statementId or voidedStatementId is present, only format and attachments
+    // are allowed as additional parameters per xAPI spec
+    if (params.statementId || params.voidedStatementId) {
+      for (const key of url.searchParams.keys()) {
+        if (key === "statementId" || key === "voidedStatementId" || key === "format" || key === "attachments") {
+          continue;
+        }
+        if (SINGLE_STMT_FORBIDDEN_PARAMS.has(key)) {
+          return xapiError(
+            `Parameter "${key}" cannot be used with ${params.statementId ? "statementId" : "voidedStatementId"}`,
+            400
+          );
+        }
+      }
+    }
+
     const acceptLanguage = request.headers.get("Accept-Language") || undefined;
     const result = await getStatements(params, acceptLanguage);
+
+    // Check if attachments=true was requested
+    const wantsAttachments = url.searchParams.get("attachments") === "true";
 
     // Single statement by ID returns unwrapped
     if (params.statementId || params.voidedStatementId) {
       if (result.statements.length === 0) {
         return xapiError("Statement not found", 404);
       }
-      return xapiResponse(result.statements[0], 200);
+      const stmt = result.statements[0];
+
+      if (wantsAttachments) {
+        // Collect all attachment hashes from the statement
+        const hashes: string[] = [];
+        const s = stmt as XAPIStatement;
+        if (s.attachments) {
+          for (const att of s.attachments) {
+            if (!att.fileUrl && att.sha2) hashes.push(att.sha2);
+          }
+        }
+        if (hashes.length > 0) {
+          try {
+            const multipart = await buildMultipartResponse(stmt, hashes);
+            if (multipart) {
+              const { NextResponse: NR } = await import("next/server");
+              const resp = new NR(new Uint8Array(multipart.body), {
+                status: 200,
+                headers: {
+                  "Content-Type": `multipart/mixed; boundary=${multipart.boundary}`,
+                  "X-Experience-API-Version": "1.0.3",
+                  "X-Experience-API-Consistent-Through": new Date().toISOString(),
+                },
+              });
+              return resp;
+            }
+          } catch (err) {
+            logger.error("Failed to build multipart response for single statement", { error: err });
+            // Fall through to normal JSON response
+          }
+        }
+      }
+
+      return xapiResponse(stmt, 200);
+    }
+
+    if (wantsAttachments) {
+      // Collect all attachment hashes from all statements
+      const hashes: string[] = [];
+      for (const s of (result.statements as XAPIStatement[])) {
+        if (s.attachments) {
+          for (const att of s.attachments) {
+            if (!att.fileUrl && att.sha2) hashes.push(att.sha2);
+          }
+        }
+      }
+      if (hashes.length > 0) {
+        try {
+          const multipart = await buildMultipartResponse(result, hashes);
+          if (multipart) {
+            const { NextResponse: NR } = await import("next/server");
+            const resp = new NR(new Uint8Array(multipart.body), {
+              status: 200,
+              headers: {
+                "Content-Type": `multipart/mixed; boundary=${multipart.boundary}`,
+                "X-Experience-API-Version": "1.0.3",
+                "X-Experience-API-Consistent-Through": new Date().toISOString(),
+              },
+            });
+            return resp;
+          }
+        } catch (err) {
+          logger.error("Failed to build multipart response", { error: err });
+          // Fall through to normal JSON response
+        }
+      }
     }
 
     return xapiResponse(result, 200);
