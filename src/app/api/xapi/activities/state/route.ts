@@ -5,6 +5,7 @@ import {
   putDocument,
   postDocument,
   getDocument,
+  getDocumentMetaOnly,
   deleteDocument,
   deleteAllDocuments,
   listDocumentIds,
@@ -51,6 +52,7 @@ export async function HEAD(request: NextRequest) {
 
     if (!activityId) return xapiError("activityId parameter is required", 400);
     if (!agentStr) return xapiError("agent parameter is required", 400);
+    if (registration && !UUID_RE.test(registration)) return xapiError("registration must be a valid UUID", 400);
 
     const agent = parseAgent(agentStr);
     if (!agent) return xapiError("agent must be a valid JSON agent object", 400);
@@ -67,7 +69,7 @@ export async function HEAD(request: NextRequest) {
       });
     }
 
-    const doc = await getDocument({
+    const meta = await getDocumentMetaOnly({
       docType: "state",
       activityId,
       agent,
@@ -75,7 +77,7 @@ export async function HEAD(request: NextRequest) {
       registration,
     });
 
-    if (!doc) {
+    if (!meta) {
       // Storyline compat — return empty 200 instead of 404
       const { NextResponse: NR } = await import("next/server");
       return new NR(null, { status: 200, headers: { "X-Experience-API-Version": "1.0.3" } });
@@ -85,9 +87,9 @@ export async function HEAD(request: NextRequest) {
     return new NextResponse(null, {
       status: 200,
       headers: {
-        "Content-Type": doc.contentType,
-        "ETag": `"${doc.etag}"`,
-        "Last-Modified": new Date(doc.updatedAt).toUTCString(),
+        "Content-Type": meta.contentType,
+        "ETag": `"${meta.etag}"`,
+        "Last-Modified": new Date(meta.updatedAt).toUTCString(),
         "X-Experience-API-Version": "1.0.3",
       },
     });
@@ -96,6 +98,9 @@ export async function HEAD(request: NextRequest) {
     return xapiError("Internal server error", 500);
   }
 }
+
+// UUID validation for registration parameter
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // PUT /api/xapi/activities/state
 export async function PUT(request: NextRequest) {
@@ -114,6 +119,7 @@ export async function PUT(request: NextRequest) {
     if (!activityId) return xapiError("activityId parameter is required", 400);
     if (!stateId) return xapiError("stateId parameter is required", 400);
     if (!agentStr) return xapiError("agent parameter is required", 400);
+    if (registration && !UUID_RE.test(registration)) return xapiError("registration must be a valid UUID", 400);
 
     const agent = parseAgent(agentStr);
     if (!agent) return xapiError("agent must be a valid JSON agent object", 400);
@@ -125,13 +131,9 @@ export async function PUT(request: NextRequest) {
     // Content-Type query parameter or defaults based on the form field.
     if (rawContentType.includes("application/x-www-form-urlencoded")) {
       const formData = await request.formData();
-      // Reject extra form fields beyond "content" per xAPI alternate request syntax
-      const allowedFields = new Set(["content"]);
-      for (const key of formData.keys()) {
-        if (!allowedFields.has(key)) {
-          return xapiError("Alternate request syntax must not contain extra information beyond 'content'", 400);
-        }
-      }
+      // xAPI alternate request syntax allows: content, Authorization, Content-Type,
+      // X-Experience-API-Version, method, plus all query parameters as form fields.
+      // We only extract "content" and ignore the rest — no strict rejection.
       content = (formData.get("content") as string) || "";
     } else {
       content = await request.text();
@@ -177,6 +179,7 @@ async function _postHandler(request: NextRequest) {
     if (!activityId) return xapiError("activityId parameter is required", 400);
     if (!stateId) return xapiError("stateId parameter is required", 400);
     if (!agentStr) return xapiError("agent parameter is required", 400);
+    if (registration && !UUID_RE.test(registration)) return xapiError("registration must be a valid UUID", 400);
 
     const agent = parseAgent(agentStr);
     if (!agent) return xapiError("agent must be a valid JSON agent object", 400);
@@ -218,6 +221,7 @@ export async function GET(request: NextRequest) {
 
     if (!activityId) return xapiError("activityId parameter is required", 400);
     if (!agentStr) return xapiError("agent parameter is required", 400);
+    if (registration && !UUID_RE.test(registration)) return xapiError("registration must be a valid UUID", 400);
 
     const agent = parseAgent(agentStr);
     if (!agent) return xapiError("agent must be a valid JSON agent object", 400);
@@ -287,6 +291,7 @@ export async function DELETE(request: NextRequest) {
 
     if (!activityId) return xapiError("activityId parameter is required", 400);
     if (!agentStr) return xapiError("agent parameter is required", 400);
+    if (registration && !UUID_RE.test(registration)) return xapiError("registration must be a valid UUID", 400);
 
     const agent = parseAgent(agentStr);
     if (!agent) return xapiError("agent must be a valid JSON agent object", 400);

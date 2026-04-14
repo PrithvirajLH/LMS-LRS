@@ -150,6 +150,19 @@ function isValidMbox(value: string): boolean {
   return MBOX_RE.test(value);
 }
 
+// ── Validate Extensions ──
+// xAPI spec: extension keys MUST be valid IRIs
+function validateExtensions(extensions: unknown, path: string): void {
+  if (extensions === undefined) return;
+  assertIsObject(extensions, path);
+  const ext = extensions as Record<string, unknown>;
+  for (const key of Object.keys(ext)) {
+    if (!isValidIRI(key)) {
+      throw new ValidationError(`${path}["${key}"]: extension keys must be valid IRIs`);
+    }
+  }
+}
+
 // ── Validate a LanguageMap ──
 function validateLanguageMap(value: unknown, path: string): void {
   assertIsObject(value, path);
@@ -414,6 +427,16 @@ function validateActivity(activity: unknown, path: string): void {
         throw new ValidationError(`${path}.definition.moreInfo: must be a valid IRL`);
       }
     }
+
+    // correctResponsesPattern requires interactionType per xAPI spec
+    if (def.correctResponsesPattern !== undefined && def.interactionType === undefined) {
+      throw new ValidationError(
+        `${path}.definition: correctResponsesPattern requires interactionType to be present`
+      );
+    }
+
+    // Validate extension keys are valid IRIs
+    validateExtensions(def.extensions, `${path}.definition.extensions`);
   }
 }
 
@@ -621,6 +644,9 @@ function validateResult(result: unknown, path: string): void {
       );
     }
   }
+
+  // Validate extension keys are valid IRIs
+  validateExtensions(r.extensions, `${path}.extensions`);
 }
 
 // ── Validate Context Activities ──
@@ -702,6 +728,9 @@ function validateContext(ctx: unknown, path: string): void {
   if (c.statement !== undefined) {
     validateStatementRef(c.statement, `${path}.statement`);
   }
+
+  // Validate extension keys are valid IRIs
+  validateExtensions(c.extensions, `${path}.extensions`);
 }
 
 // ── Validate Authority ──
@@ -919,15 +948,10 @@ export function validateStatements(stmts: unknown): void {
   }
 }
 
-// ── Normalize a statement ──
-// Auto-wraps single contextActivities objects into arrays per the xAPI spec.
-// Call this AFTER validation but BEFORE storage.
-export function normalizeStatement(stmt: XAPIStatement): XAPIStatement {
-  if (!stmt.context?.contextActivities) {
-    return stmt;
-  }
-
-  const ca = stmt.context.contextActivities as Record<string, unknown>;
+// ── Normalize contextActivities — wrap single objects into arrays ──
+function normalizeContextActivities(
+  ca: Record<string, unknown>
+): { normalized: Record<string, unknown>; modified: boolean } {
   const keys = ["parent", "grouping", "category", "other"] as const;
   let modified = false;
   const normalizedCA: Record<string, unknown> = { ...ca };
@@ -940,15 +964,56 @@ export function normalizeStatement(stmt: XAPIStatement): XAPIStatement {
     }
   }
 
-  if (!modified) {
-    return stmt;
+  return { normalized: normalizedCA, modified };
+}
+
+// ── Normalize a statement ──
+// Auto-wraps single contextActivities objects into arrays per the xAPI spec.
+// Call this AFTER validation but BEFORE storage.
+// Also normalizes substatement contextActivities.
+export function normalizeStatement(stmt: XAPIStatement): XAPIStatement {
+  let result = stmt;
+  let modified = false;
+
+  // Normalize top-level contextActivities
+  if (result.context?.contextActivities) {
+    const ca = result.context.contextActivities as Record<string, unknown>;
+    const { normalized, modified: caModified } = normalizeContextActivities(ca);
+    if (caModified) {
+      result = {
+        ...result,
+        context: {
+          ...result.context,
+          contextActivities: normalized as unknown as ContextActivities,
+        },
+      };
+      modified = true;
+    }
   }
 
-  return {
-    ...stmt,
-    context: {
-      ...stmt.context,
-      contextActivities: normalizedCA as unknown as ContextActivities,
-    },
-  };
+  // Normalize substatement contextActivities
+  const obj = result.object as Record<string, unknown>;
+  if (obj && obj.objectType === "SubStatement") {
+    const sub = obj as Record<string, unknown>;
+    const subCtx = sub.context as Record<string, unknown> | undefined;
+    if (subCtx?.contextActivities) {
+      const subCA = subCtx.contextActivities as Record<string, unknown>;
+      const { normalized, modified: subModified } = normalizeContextActivities(subCA);
+      if (subModified) {
+        result = {
+          ...result,
+          object: {
+            ...sub,
+            context: {
+              ...subCtx,
+              contextActivities: normalized as unknown as ContextActivities,
+            },
+          } as unknown as XAPIStatement["object"],
+        };
+        modified = true;
+      }
+    }
+  }
+
+  return modified ? result : stmt;
 }

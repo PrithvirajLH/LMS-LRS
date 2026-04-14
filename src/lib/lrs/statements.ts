@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from "uuid";
 import { getTableClient } from "@/lib/azure/table-client";
 import { uploadBlob, downloadBlob } from "@/lib/azure/blob-client";
 import { validateStatement, normalizeStatement, ValidationError } from "./validation";
-import { storageQueue } from "@/lib/queue";
 import { logger } from "@/lib/logger";
 import type {
   XAPIStatement,
@@ -322,68 +321,70 @@ export async function storeStatements(
     const pk = partitionKeyFromDate(now);
     const rk = `${reverseTimestamp(now)}-${statementId}`;
 
-    // ── Enqueue storage writes (runs in background after response) ──
-    // Validation already passed; duplicate check already passed.
-    // The HTTP response can return the statement ID immediately.
-    const accepted = storageQueue.enqueue(async () => {
+    // ── Write storage synchronously so statements are immediately queryable ──
+    // xAPI conformance requires that statements returned by POST are available
+    // in subsequent GET queries without delay.
+    try {
+      // 1. Write full JSON to Blob Storage
+      await uploadBlob(
+        "statements",
+        `${statementId}.json`,
+        JSON.stringify(fullStatement)
+      );
+
+      // 2. Write metadata to Table Storage
+      const entity: StatementEntity = {
+        partitionKey: pk,
+        rowKey: rk,
+        statementId,
+        actorIfiType: actorIFI.type,
+        actorIfiValue: actorIFI.value,
+        verbId: stmt.verb.id,
+        objectType,
+        objectId,
+        registration,
+        timestamp,
+        stored,
+        isVoided: false,
+        voidingStatementId: "",
+        credentialId: credential.rowKey as string,
+      };
+
+      await statementsTable.createEntity(entity);
+
+      // 3. Write index entry
+      const indexEntity: StatementIndexEntity = {
+        partitionKey: "sid",
+        rowKey: statementId,
+        statementsPartitionKey: pk,
+        statementsRowKey: rk,
+      };
+
+      await indexTable.createEntity(indexEntity);
+    } catch (err) {
+      logger.error("Statement storage failed", {
+        statementId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+
+    // 4. Handle voiding: if this is a voiding statement, mark the target
+    if (
+      fullStatement.verb.id === "http://adlnet.gov/expapi/verbs/voided" &&
+      (fullStatement.object as { objectType?: string }).objectType === "StatementRef"
+    ) {
+      const targetId = (fullStatement.object as { id: string }).id;
       try {
-        // 1. Write full JSON to Blob Storage
-        await uploadBlob(
-          "statements",
-          `${statementId}.json`,
-          JSON.stringify(fullStatement)
-        );
-
-        // 2. Write metadata to Table Storage
-        const entity: StatementEntity = {
-          partitionKey: pk,
-          rowKey: rk,
-          statementId,
-          actorIfiType: actorIFI.type,
-          actorIfiValue: actorIFI.value,
-          verbId: stmt.verb.id,
-          objectType,
-          objectId,
-          registration,
-          timestamp,
-          stored,
-          isVoided: false,
-          voidingStatementId: "",
-          credentialId: credential.rowKey as string,
-        };
-
-        await statementsTable.createEntity(entity);
-
-        // 3. Write index entry
-        const indexEntity: StatementIndexEntity = {
-          partitionKey: "sid",
-          rowKey: statementId,
-          statementsPartitionKey: pk,
-          statementsRowKey: rk,
-        };
-
-        await indexTable.createEntity(indexEntity);
-
-        // 4. Handle voiding: if this is a voiding statement, mark the target
-        if (
-          fullStatement.verb.id === "http://adlnet.gov/expapi/verbs/voided" &&
-          (fullStatement.object as { objectType?: string }).objectType === "StatementRef"
-        ) {
-          const targetId = (fullStatement.object as { id: string }).id;
-          await voidStatement(targetId, statementId);
-        }
+        await voidStatement(targetId, statementId);
       } catch (err) {
-        logger.error("Background statement storage failed", {
+        logger.error("Void processing failed", {
           statementId,
+          targetId,
           error: err instanceof Error ? err.message : String(err),
         });
-        throw err; // Re-throw so the queue retries
+        // Non-fatal: the statement is still stored, voiding can be retried
       }
-    });
-
-    if (!accepted) {
-      // Back-pressure: queue is full, server is overwhelmed
-      throw new ValidationError("Server is busy — try again shortly");
     }
 
     ids.push(statementId);

@@ -5,6 +5,7 @@ import {
   putDocument,
   postDocument,
   getDocument,
+  getDocumentMetaOnly,
   deleteDocument,
   listDocumentIds,
 } from "@/lib/lrs/documents";
@@ -59,20 +60,20 @@ export async function HEAD(request: NextRequest) {
       });
     }
 
-    const doc = await getDocument({
+    const meta = await getDocumentMetaOnly({
       docType: "agent_profile",
       agent,
       profileId,
     });
 
-    if (!doc) return xapiError("Agent profile document not found", 404);
+    if (!meta) return xapiError("Agent profile document not found", 404);
 
     return new NextResponse(null, {
       status: 200,
       headers: {
-        "Content-Type": doc.contentType,
-        "ETag": `"${doc.etag}"`,
-        "Last-Modified": new Date(doc.updatedAt).toUTCString(),
+        "Content-Type": meta.contentType,
+        "ETag": `"${meta.etag}"`,
+        "Last-Modified": new Date(meta.updatedAt).toUTCString(),
         "X-Experience-API-Version": "1.0.3",
       },
     });
@@ -102,13 +103,9 @@ export async function PUT(request: NextRequest) {
     const rawContentType = request.headers.get("Content-Type") || "application/octet-stream";
     if (rawContentType.includes("application/x-www-form-urlencoded")) {
       const formData = await request.formData();
-      // Reject extra form fields beyond "content" per xAPI alternate request syntax
-      const allowedFields = new Set(["content"]);
-      for (const key of formData.keys()) {
-        if (!allowedFields.has(key)) {
-          return xapiError("Alternate request syntax must not contain extra information beyond 'content'", 400);
-        }
-      }
+      // xAPI alternate request syntax allows: content, Authorization, Content-Type,
+      // X-Experience-API-Version, method, plus all query parameters as form fields.
+      // We only extract "content" and ignore the rest — no strict rejection.
       content = (formData.get("content") as string) || "";
     } else {
       content = await request.text();

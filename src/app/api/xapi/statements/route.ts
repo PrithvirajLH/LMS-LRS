@@ -116,13 +116,9 @@ export async function PUT(request: NextRequest) {
       if (contentType.includes("application/x-www-form-urlencoded")) {
         // Method override: PUT-as-POST with url-encoded body
         const formData = await request.formData();
-        // Reject extra form fields beyond "content" per xAPI alternate request syntax
-        const allowedFields = new Set(["content"]);
-        for (const key of formData.keys()) {
-          if (!allowedFields.has(key)) {
-            return xapiError("Alternate request syntax must not contain extra information beyond 'content'", 400);
-          }
-        }
+        // xAPI alternate request syntax allows: content, Authorization, Content-Type,
+        // X-Experience-API-Version, method, plus all query parameters as form fields.
+        // We only extract "content" and ignore the rest — no strict rejection.
         const content = formData.get("content") as string;
         body = content ? JSON.parse(content) : null;
       } else {
@@ -159,10 +155,13 @@ export async function PUT(request: NextRequest) {
 }
 
 // Known xAPI GET query parameters
+// "method" is included because POST-as-GET alternate request syntax may leave it
+// in the URL if middleware rewrite doesn't fully strip it.
 const KNOWN_GET_PARAMS = new Set([
   "statementId", "voidedStatementId", "agent", "verb", "activity",
   "registration", "related_activities", "related_agents", "since",
   "until", "limit", "format", "ascending", "attachments", "from",
+  "method",
 ]);
 
 // Parameters that CANNOT be combined with statementId / voidedStatementId

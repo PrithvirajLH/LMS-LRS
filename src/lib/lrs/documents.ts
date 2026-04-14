@@ -90,8 +90,11 @@ export async function putDocument(params: {
     return { etag: "", status: 412, error: "ETag mismatch — document was modified by another client (Precondition Failed)" };
   }
 
-  // If no concurrency headers provided, allow upsert (Storyline doesn't send If-Match)
-  // Strict xAPI would reject here, but practical LRS implementations allow it
+  // Concurrency enforcement: if document already exists and no concurrency headers
+  // are provided, return 412 per xAPI spec. State API is exempt for Storyline compat.
+  if (existing && !params.ifMatch && !params.ifNoneMatch && params.docType !== "state") {
+    return { etag: "", status: 412, error: "Precondition Failed — existing document requires If-Match header" };
+  }
 
   const newEtag = generateETag(params.content);
   const now = new Date().toISOString();
@@ -171,15 +174,30 @@ export async function postDocument(params: {
   let finalContentType: string;
 
   if (isNewJson && isExistingJson) {
-    const existingContent = await downloadBlob("documents", existing.blobPath);
+    let existingContent: string;
+    try {
+      existingContent = await downloadBlob("documents", existing.blobPath);
+    } catch (blobErr) {
+      logger.error("Document merge: failed to read existing blob", {
+        blobPath: existing.blobPath,
+        error: blobErr instanceof Error ? blobErr.message : String(blobErr),
+      });
+      return { etag: "", status: 400, error: "Cannot merge — failed to read existing document" };
+    }
+
     let existingObj: Record<string, unknown>;
     let newObj: Record<string, unknown>;
 
     try {
       existingObj = JSON.parse(existingContent);
+    } catch {
+      return { etag: "", status: 400, error: "Cannot merge — existing document is not valid JSON" };
+    }
+
+    try {
       newObj = JSON.parse(params.content);
     } catch {
-      return { etag: "", status: 400, error: "Cannot merge — invalid JSON" };
+      return { etag: "", status: 400, error: "Cannot merge — new document is not valid JSON" };
     }
 
     if (typeof existingObj !== "object" || typeof newObj !== "object" ||
@@ -192,8 +210,8 @@ export async function postDocument(params: {
       finalContentType = "application/json";
     }
   } else {
-    finalContent = params.content;
-    finalContentType = params.contentType;
+    // POST merge requires both documents to be JSON. If either is not JSON, return 400.
+    return { etag: "", status: 400, error: "Cannot merge — both existing and incoming documents must have Content-Type of application/json for POST merge" };
   }
 
   const newEtag = generateETag(finalContent);
@@ -356,6 +374,29 @@ export async function deleteAllDocuments(params: {
     }
     await table.deleteEntity(entity.partitionKey, entity.rowKey);
   }
+}
+
+// ── Get document metadata only (no blob download — for HEAD requests) ──
+export async function getDocumentMetaOnly(params: {
+  docType: DocType;
+  activityId?: string;
+  agent?: Actor;
+  stateId?: string;
+  profileId?: string;
+  registration?: string;
+}): Promise<{
+  contentType: string;
+  etag: string;
+  updatedAt: string;
+} | null> {
+  const { partitionKey, rowKey } = buildDocKeys(params);
+  const meta = await getDocumentMeta(partitionKey, rowKey);
+  if (!meta) return null;
+  return {
+    contentType: meta.contentType,
+    etag: meta.docEtag || "",
+    updatedAt: meta.updatedAt,
+  };
 }
 
 // ── Helper: get document metadata from table ──
