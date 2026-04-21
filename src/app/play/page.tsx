@@ -82,6 +82,12 @@ function CoursePlayer() {
         // Set actor from session
         setActor(data.actor);
 
+        // Initialize progress from server (derived from xAPI statements)
+        // so the player shows the actual completion % on load.
+        if (typeof data.progress === "number") {
+          setProgress(data.progress);
+        }
+
         // Set course — use proxy URL (serves through Next.js server).
         // SAS URLs don't work when public access is disabled on the storage
         // account because Storyline loads relative assets (CSS/JS) without
