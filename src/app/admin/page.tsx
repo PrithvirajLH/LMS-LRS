@@ -15,12 +15,24 @@ interface Stats {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/stats")
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(console.error)
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok || data?.error) {
+          setError(data?.message || `Request failed with status ${r.status}`);
+          return;
+        }
+        // Defensive: ensure required arrays exist
+        setStats({
+          ...data,
+          topVerbs: Array.isArray(data.topVerbs) ? data.topVerbs : [],
+          topActors: Array.isArray(data.topActors) ? data.topActors : [],
+        });
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load stats"))
       .finally(() => setLoading(false));
   }, []);
 
@@ -34,6 +46,20 @@ export default function AdminDashboard() {
               <div key={i} className="h-28 bg-gray-200 rounded-xl" />
             ))}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 max-w-lg">
+          <h2 className="text-sm font-semibold text-red-900">Unable to load dashboard</h2>
+          <p className="text-sm text-red-700 mt-1">{error}</p>
+          <p className="text-xs text-red-600 mt-3">
+            This page requires admin or instructor access. If you believe this is an error, contact your administrator.
+          </p>
         </div>
       </div>
     );
