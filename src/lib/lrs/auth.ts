@@ -1,17 +1,43 @@
 import { compare } from "bcryptjs";
 import { getTableClient } from "@/lib/azure/table-client";
 import { credentialCache } from "@/lib/cache";
+import { getLaunchToken, type LaunchTokenEntity } from "./launch-tokens";
 import type { CredentialEntity } from "./types";
 
 export interface AuthResult {
   authenticated: true;
   credential: CredentialEntity;
+  launchToken?: LaunchTokenEntity;
 }
 
 export interface AuthError {
   authenticated: false;
   status: number;
   message: string;
+}
+
+const LMS_HOMEPAGE = "https://lms.creativeminds.com";
+
+// Build a CredentialEntity-shaped object for a launch-token request so the
+// downstream pipeline (rate limiter, audit fields, authority on stored
+// statements) keeps working unchanged.
+function synthesizeLaunchTokenCredential(
+  token: LaunchTokenEntity
+): CredentialEntity {
+  return {
+    partitionKey: "credential",
+    rowKey: `lt:${token.rowKey}`,
+    apiSecretHash: "",
+    displayName: `Launch token (${token.email})`,
+    authorityAgent: JSON.stringify({
+      objectType: "Agent",
+      account: { homePage: LMS_HOMEPAGE, name: token.email },
+      name: token.userName,
+    }),
+    scopes: "statements/write",
+    rateLimitPerMinute: 60,
+    isActive: true,
+  };
 }
 
 export async function authenticateRequest(
@@ -54,6 +80,26 @@ export async function authenticateRequest(
       authenticated: false,
       status: 401,
       message: "API key and secret are required",
+    };
+  }
+
+  // ── Launch-token path ──
+  // The browser-side player authenticates with `lt:<token>`. The token is
+  // looked up by exact match (no bcrypt) and binds the request to a single
+  // user, course, and registration.
+  if (apiKey === "lt") {
+    const token = await getLaunchToken(apiSecret);
+    if (!token) {
+      return {
+        authenticated: false,
+        status: 401,
+        message: "Invalid or expired launch token",
+      };
+    }
+    return {
+      authenticated: true,
+      credential: synthesizeLaunchTokenCredential(token),
+      launchToken: token,
     };
   }
 

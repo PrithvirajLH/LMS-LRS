@@ -71,7 +71,7 @@ export class TTLCache<T> {
 // ── Pre-configured caches ────────────────────────────────────────
 
 /** Session cache: avoids hitting Azure Tables on every request. 60s TTL. */
-export const sessionCache = new TTLCache<{ userId: string; userName: string; email: string; role: "learner" | "instructor" | "admin"; facility: string; expiresAt: string }>({
+export const sessionCache = new TTLCache<{ userId: string; userName: string; email: string; role: "learner" | "instructor" | "admin"; facility: string; expiresAt: string; absoluteExpiresAt?: string; lastActivityAt?: string }>({
   defaultTtlSeconds: 60,
   maxSize: 20_000, // 16K users + headroom
 });

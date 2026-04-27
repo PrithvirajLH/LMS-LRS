@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { registerUser, createSession, getSession, validatePassword } from "@/lib/auth/session";
+import { registerUser, createSession, getSession } from "@/lib/auth/session";
 import { authLimiter, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { RegisterSchema } from "@/lib/schemas";
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
@@ -14,23 +15,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const { name, email, employeeId, password, facility, department, position } = body;
-
-    if (!name || !email || !employeeId || !password || !facility) {
+    const parsed = RegisterSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: true, message: "name, email, employeeId, password, and facility are required" },
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
         { status: 400 }
       );
     }
-
-    const pwError = validatePassword(password);
-    if (pwError) {
-      return NextResponse.json(
-        { error: true, message: pwError },
-        { status: 400 }
-      );
-    }
+    const { name, email, employeeId, password, facility, department, position } = parsed.data;
 
     // Self-registration is always "learner" — instructors/admins are created by admins only
     const user = await registerUser({ name, email, employeeId, password, facility, department, position, role: "learner" });

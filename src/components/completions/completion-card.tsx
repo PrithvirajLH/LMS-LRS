@@ -138,31 +138,6 @@ export function CompletionCard({
               </div>
             )}
 
-            {/* Credits */}
-            <div className="text-center">
-              <div
-                style={{
-                  fontFamily: "var(--font-label)",
-                  fontSize: "9px",
-                  letterSpacing: "0.15em",
-                  textTransform: "uppercase",
-                  color: "var(--text-muted)",
-                }}
-              >
-                Credits
-              </div>
-              <div
-                className="mt-1"
-                style={{
-                  fontFamily: "var(--font-body)",
-                  fontSize: "var(--text-stat-m)",
-                  fontWeight: 700,
-                  color: "#445A73",
-                }}
-              >
-                {credits}
-              </div>
-            </div>
 
             {/* Certificate icon */}
             <div
@@ -187,7 +162,7 @@ export function CompletionCard({
             color: "var(--text-muted)",
           }}
         >
-          {credits} credits earned
+          Completed
         </span>
         <button
           className="flex items-center gap-2 rounded-[5px] px-4 py-2 transition-colors duration-200"

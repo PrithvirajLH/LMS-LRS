@@ -289,7 +289,6 @@ export default function UploadCoursePage() {
                     />
                   )}
                 </div>
-                <InputField label="Credits" value={credits} onChange={setCredits} type="number" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">

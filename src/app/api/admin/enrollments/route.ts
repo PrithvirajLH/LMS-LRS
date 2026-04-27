@@ -10,6 +10,11 @@ import {
 import { audit } from "@/lib/audit";
 import { getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import {
+  BulkEnrollSchema,
+  CreateEnrollmentSchema,
+  CompleteEnrollmentSchema,
+} from "@/lib/schemas";
 
 // POST /api/admin/enrollments — Enroll user(s) in a course
 export async function POST(request: NextRequest) {
@@ -18,21 +23,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // Bulk enroll: { userIds: [...], courseId, courseTitle, assignedDate, dueDate }
-    if (body.userIds && Array.isArray(body.userIds)) {
+    if (body && Array.isArray(body.userIds)) {
+      const parsed = BulkEnrollSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: true, message: "Validation failed", issues: parsed.error.issues },
+          { status: 400 }
+        );
+      }
+      const data = parsed.data;
       const count = await bulkEnroll({
-        userIds: body.userIds,
-        courseId: body.courseId,
-        courseTitle: body.courseTitle,
-        assignedDate: body.assignedDate || new Date().toISOString().slice(0, 10),
-        dueDate: body.dueDate,
+        userIds: data.userIds,
+        courseId: data.courseId,
+        courseTitle: data.courseTitle || "",
+        assignedDate: data.assignedDate || new Date().toISOString().slice(0, 10),
+        dueDate: data.dueDate || "",
       });
 
       audit({
         action: "enrollment.bulk_create",
         actorId: auth.session.userId, actorName: auth.session.userName, actorRole: auth.session.role,
-        targetType: "course", targetId: body.courseId,
-        summary: `Bulk enrolled ${count} users in ${body.courseTitle || body.courseId}`,
-        details: { userIds: body.userIds, courseId: body.courseId, dueDate: body.dueDate },
+        targetType: "course", targetId: data.courseId,
+        summary: `Bulk enrolled ${count} users in ${data.courseTitle || data.courseId}`,
+        details: { userIds: data.userIds, courseId: data.courseId, dueDate: data.dueDate },
         ip: getClientIp(request),
       });
 
@@ -40,10 +53,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Single enroll: { userId, courseId, courseTitle, assignedDate, dueDate }
-    const { userId, courseId, courseTitle, assignedDate, dueDate } = body;
-    if (!userId || !courseId) {
-      return NextResponse.json({ error: true, message: "userId and courseId are required" }, { status: 400 });
+    const parsed = CreateEnrollmentSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
     }
+    const { userId, courseId, courseTitle, assignedDate, dueDate } = parsed.data;
 
     const enrollment = await createEnrollment({
       userId,
@@ -94,20 +111,44 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["instructor", "admin"]);
-    const body = await request.json();
-    const { userId, courseId, completedDate, score, timeSpent } = body;
-
-    if (!userId || !courseId) {
-      return NextResponse.json({ error: true, message: "userId and courseId are required" }, { status: 400 });
+    const parsed = CompleteEnrollmentSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
     }
+    const { userId, courseId, completedDate, score, timeSpent } = parsed.data;
+
+    const effectiveCompletedDate = completedDate || new Date().toISOString();
+    const effectiveScore = score || 0;
+    const effectiveTimeSpent = timeSpent || 0;
 
     await markEnrollmentCompleted(
       userId,
       courseId,
-      completedDate || new Date().toISOString(),
-      score || 0,
-      timeSpent || 0
+      effectiveCompletedDate,
+      effectiveScore,
+      effectiveTimeSpent
     );
+
+    audit({
+      action: "enrollment.complete",
+      actorId: auth.session.userId,
+      actorName: auth.session.userName,
+      actorRole: auth.session.role,
+      targetType: "enrollment",
+      targetId: `${userId}:${courseId}`,
+      summary: `Marked enrollment ${userId}:${courseId} completed (score=${effectiveScore})`,
+      details: {
+        userId,
+        courseId,
+        score: effectiveScore,
+        timeSpent: effectiveTimeSpent,
+        completedDate: effectiveCompletedDate,
+      },
+      ip: getClientIp(request),
+    });
 
     return NextResponse.json({ userId, courseId, status: "completed" });
   } catch (e) {

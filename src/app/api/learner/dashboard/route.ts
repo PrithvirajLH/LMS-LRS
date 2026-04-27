@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getUserEnrollments, markEnrollmentCompleted } from "@/lib/users/user-storage";
 import { getAllCoursesMap, getCourselaunchUrl } from "@/lib/courses/course-storage";
+import { evaluateCompletion } from "@/lib/courses/completion";
 import { getTableClient } from "@/lib/azure/table-client";
 import { downloadBlob } from "@/lib/azure/blob-client";
 import { logger } from "@/lib/logger";
@@ -28,22 +29,30 @@ export async function GET(request: NextRequest) {
     for (const enrollment of enrollments) {
       const course = courseMap.get(enrollment.courseId) || null;
       const launchUrl = course ? getCourselaunchUrl(course.blobBasePath, course.launchFile) : "";
-      const activityId = course?.activityId || "";
 
-      // Check xAPI for this course's status
+      // Check xAPI for this course's status (sub-activity coverage stats)
+      const activityId = course?.activityId || "";
       const xapi = xapiProgress[activityId];
       let status = enrollment.status;
       let progress = 0;
       let score = enrollment.score;
       let completedDate = enrollment.completedDate;
 
-      if (xapi?.completed) {
+      // Re-evaluate completion server-side. The score gate (per-course or
+      // org-wide passing threshold) lives in evaluateCompletion — we no
+      // longer trust whatever score the client put on the verbs/completed
+      // statement.
+      const decision = course
+        ? await evaluateCompletion(course, session.email)
+        : null;
+
+      if (decision?.shouldComplete) {
         status = "completed";
         progress = 100;
-        score = xapi.score || score;
-        completedDate = xapi.completedDate || completedDate;
+        score = decision.score || score;
+        completedDate = decision.completedDate || completedDate;
 
-        // Auto-sync: mark enrollment as completed if xAPI says so
+        // Auto-sync: mark enrollment as completed once the gate passes
         if (enrollment.status !== "completed") {
           try {
             await markEnrollmentCompleted(
@@ -51,15 +60,15 @@ export async function GET(request: NextRequest) {
               enrollment.courseId,
               completedDate,
               score,
-              xapi.timeSpent || 0
+              xapi?.timeSpent || 0
             );
           } catch { /* ignore sync errors */ }
         }
-      } else if (xapi?.hasStatements) {
+      } else if (xapi?.hasStatements || decision?.hasStatements) {
         if (status === "assigned") status = "in_progress";
 
         const totalModules = course?.moduleCount || 0;
-        const touchedModules = xapi.uniqueModules || 0;
+        const touchedModules = decision?.uniqueModules || xapi?.uniqueModules || 0;
 
         if (totalModules > 0 && touchedModules > 0) {
           progress = Math.min(Math.round((touchedModules / totalModules) * 100), 99);
@@ -88,6 +97,7 @@ export async function GET(request: NextRequest) {
         completedOnTime: enrollment.completedOnTime,
         launchUrl,
         color: course?.color || "from-[#445A73] to-[#A8BDD4]",
+        thumbnailUrl: course?.thumbnailUrl || "",
         totalModules: course?.moduleCount || 0,
         completedModules: xapi?.uniqueModules || 0,
       });
@@ -154,6 +164,17 @@ export async function GET(request: NextRequest) {
     const inProgress = courses.filter((c) => c.status === "in_progress").length;
     const overdue = courses.filter((c) => c.dueDate && new Date(c.dueDate) < new Date() && c.status !== "completed").length;
 
+    // CE credit expiration counts (only completed enrollments with expiresAt)
+    const { getExpirationStatus } = await import("@/lib/courses/expiration");
+    let expiringSoon = 0;
+    let expired = 0;
+    for (const enr of enrollments) {
+      if (enr.status !== "completed" || !enr.expiresAt) continue;
+      const status = getExpirationStatus(enr.expiresAt);
+      if (status === "expiring_soon") expiringSoon++;
+      else if (status === "expired") expired++;
+    }
+
     const upcoming = courses
       .filter((c) => c.dueDate && c.status !== "completed")
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
@@ -178,6 +199,8 @@ export async function GET(request: NextRequest) {
         overdue,
         totalCredits,
         earnedCredits,
+        expiringSoon,
+        expired,
       },
       lastActivity,
       nextDeadline: nextDeadline ? {

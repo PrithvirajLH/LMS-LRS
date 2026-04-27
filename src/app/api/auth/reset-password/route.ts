@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resetPasswordWithToken } from "@/lib/auth/session";
 import { resetLimiter, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { ResetPasswordSchema } from "@/lib/schemas";
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
@@ -14,9 +15,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { token, password } = await request.json();
-    if (!token || !password) return NextResponse.json({ error: true, message: "Token and password are required" }, { status: 400 });
-    // Password policy is enforced in resetPasswordWithToken via validatePassword
+    const parsed = ResetPasswordSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const { token, password } = parsed.data;
 
     const result = await resetPasswordWithToken(token, password);
 

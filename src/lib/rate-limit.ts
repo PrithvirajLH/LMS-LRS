@@ -130,15 +130,26 @@ setInterval(() => {
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-/** Extract client IP from request (works behind proxies) */
+/** Extract client IP from request (works behind proxies). Spoof-resistant. */
 export function getClientIp(request: Request): string {
   const headers = request.headers;
-  // X-Forwarded-For can contain a comma-separated list; first is the client
+
+  // Azure App Service sets X-Azure-ClientIP server-side; clients can't spoof it.
+  const azureClient = headers.get("x-azure-clientip");
+  if (azureClient) return azureClient.trim();
+
+  // X-Forwarded-For: trusted reverse proxies APPEND to this header. The
+  // leftmost entry is whatever the original client sent — potentially
+  // spoofed. The rightmost entry is what was added most recently by the
+  // closest trusted proxy, and is the only value we can trust. Reading
+  // the leftmost entry would let any client bypass IP rate limits by
+  // setting their own X-Forwarded-For.
   const forwarded = headers.get("x-forwarded-for");
   if (forwarded) {
-    return forwarded.split(",")[0].trim();
+    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
   }
-  // Azure App Service / other proxies
+
   return (
     headers.get("x-real-ip") ||
     headers.get("x-client-ip") ||

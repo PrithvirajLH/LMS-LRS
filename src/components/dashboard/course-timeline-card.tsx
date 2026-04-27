@@ -18,6 +18,7 @@ interface CourseTimelineCardProps {
   dueIn?: string;
   currentModule?: string;
   color: string;
+  thumbnailUrl?: string;
   index: number;
   totalModules?: number;
   completedModules?: number;
@@ -74,6 +75,7 @@ export function CourseTimelineCard({
   dueIn,
   currentModule,
   color,
+  thumbnailUrl,
   index,
   totalModules,
   completedModules,
@@ -121,6 +123,18 @@ export function CourseTimelineCard({
           {/* Content */}
           <div className="flex-1 p-6">
             <div className="flex items-start justify-between gap-4">
+              {/* Thumbnail (when available) */}
+              {thumbnailUrl && (
+                <div
+                  className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url(${thumbnailUrl})`,
+                    border: "1px solid var(--border-default)",
+                  }}
+                  aria-hidden="true"
+                />
+              )}
+
               {/* Left: title + meta */}
               <div className="flex-1 min-w-0">
                 {/* Category + status */}
@@ -244,30 +258,6 @@ export function CourseTimelineCard({
                 )}
               </div>
 
-              {/* Right: credits */}
-              <div className="text-center shrink-0 ml-4">
-                <div
-                  style={{
-                    fontFamily: "var(--font-label)",
-                    fontSize: "11px",
-                    letterSpacing: "var(--tracking-wider)",
-                    textTransform: "uppercase" as const,
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  Credits
-                </div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "var(--text-stat-m)",
-                    fontWeight: 700,
-                    color: status === "completed" ? "#445A73" : "var(--stone-900)",
-                  }}
-                >
-                  {credits}
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -290,15 +280,6 @@ export function CourseTimelineCard({
               }}
             >
               <ClockIcon /> {duration}
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--font-body)",
-                fontSize: "12px",
-                color: "var(--text-muted)",
-              }}
-            >
-              Credits earned: <strong style={{ fontWeight: 700, color: "var(--text-primary)" }}>{creditsEarned}</strong>
             </span>
           </div>
 

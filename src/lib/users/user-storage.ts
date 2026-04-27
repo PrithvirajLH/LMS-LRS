@@ -38,6 +38,9 @@ export interface EnrollmentEntity {
   completedOnTime: boolean;
   createdAt: string;
   updatedAt: string;
+  // CE credit expiration. Set on completion based on the course's
+  // validityPeriodMonths. Empty string when the course has no validity period.
+  expiresAt?: string;
 }
 
 // ── Users CRUD ──
@@ -205,6 +208,7 @@ export async function updateEnrollment(
 /**
  * Mark an enrollment as completed.
  * Calculates completedOnTime based on completedDate vs dueDate.
+ * Calculates expiresAt based on the course's validityPeriodMonths (CE credit window).
  */
 export async function markEnrollmentCompleted(
   userId: string,
@@ -225,6 +229,15 @@ export async function markEnrollmentCompleted(
 
   const completedOnTime = new Date(completedDate) <= new Date(enrollment.dueDate);
 
+  // Look up the course to compute CE credit expiration. Imported here to
+  // avoid a circular dependency at module load.
+  const { getCourse } = await import("@/lib/courses/course-storage");
+  const { calculateExpirationDate } = await import("@/lib/courses/expiration");
+  const course = await getCourse(courseId);
+  const expiresAt = course
+    ? calculateExpirationDate(completedDate, course.validityPeriodMonths)
+    : "";
+
   await table.updateEntity(
     {
       partitionKey: userId,
@@ -234,6 +247,7 @@ export async function markEnrollmentCompleted(
       score,
       timeSpent,
       completedOnTime,
+      expiresAt,
       updatedAt: new Date().toISOString(),
     },
     "Merge"

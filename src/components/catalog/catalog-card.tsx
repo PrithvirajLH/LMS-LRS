@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import Link from "next/link";
+import { useState } from "react";
 
 export type EnrollStatus = "enrolled" | "available" | "completed" | "in_progress";
 
@@ -16,6 +17,7 @@ interface CatalogCardProps {
   enrollStatus: EnrollStatus;
   accreditation?: string;
   color: string;
+  thumbnailUrl?: string;
   index: number;
   onEnroll?: (id: string) => void;
 }
@@ -38,52 +40,75 @@ export function CatalogCard({
   enrollStatus,
   accreditation,
   color,
+  thumbnailUrl,
   index,
   onEnroll,
 }: CatalogCardProps) {
   const config = statusConfig[enrollStatus];
+  // Tap toggle for touch devices (no hover available)
+  const [tapped, setTapped] = useState(false);
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.25 } }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.2 } }}
       transition={{
-        layout: { type: "spring", damping: 30, stiffness: 200, mass: 0.8 },
-        opacity: { duration: 0.35, delay: index * 0.05 },
-        y: { duration: 0.35, delay: index * 0.05 },
+        layout: { type: "spring", damping: 28, stiffness: 220, mass: 0.7 },
+        opacity: { duration: 0.3 },
       }}
-      className="rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-lg hover:shadow-black/[0.06] group flex flex-col"
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      className="rounded-2xl overflow-hidden flex flex-col h-full hover:shadow-xl hover:shadow-black/[0.08]"
       style={{
         backgroundColor: "var(--bg-raised)",
         border: "1px solid var(--border-default)",
+        transition: "box-shadow 0.3s",
       }}
     >
-      {/* Color header */}
-      <div className={`h-24 bg-gradient-to-br ${color} relative overflow-hidden`}>
-        {/* Subtle pattern overlay */}
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: "radial-gradient(circle at 20% 80%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.2) 0%, transparent 40%)",
-        }} />
+      {/* ── IMAGE SECTION (top) — hover only here reveals description ── */}
+      <div
+        className="relative overflow-hidden cursor-pointer group/image"
+        style={{
+          aspectRatio: "16 / 9",
+          backgroundColor: thumbnailUrl ? "#1a2838" : undefined,
+        }}
+        onClick={() => setTapped((t) => !t)}
+      >
+        <div
+          className={`absolute inset-0 ${thumbnailUrl ? "bg-cover bg-center" : `bg-gradient-to-br ${color}`}`}
+          style={thumbnailUrl ? { backgroundImage: `url(${thumbnailUrl})` } : undefined}
+        />
 
-        {/* Category + Status */}
-        <div className="absolute top-3 left-4 right-4 flex items-center justify-between">
+        {/* Subtle gradient when no image — keeps the chips legible */}
+        {!thumbnailUrl && (
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 20% 80%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.2) 0%, transparent 40%)",
+            }}
+          />
+        )}
+
+        {/* Top chips: category + status */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
           <span
-            className="rounded-full px-2.5 py-0.5 backdrop-blur-sm"
+            className="rounded-full px-2.5 py-0.5 backdrop-blur-md truncate"
             style={{
               fontFamily: "var(--font-label)",
               fontSize: "9px",
               letterSpacing: "0.14em",
               textTransform: "uppercase",
-              backgroundColor: "rgba(255,255,255,0.2)",
-              color: "rgba(255,255,255,0.9)",
+              backgroundColor: "rgba(255,255,255,0.18)",
+              color: "rgba(255,255,255,0.95)",
+              border: "1px solid rgba(255,255,255,0.15)",
             }}
           >
             {category}
           </span>
           <span
-            className="rounded-full px-2.5 py-0.5"
+            className="rounded-full px-2.5 py-0.5 shrink-0"
             style={{
               fontFamily: "var(--font-label)",
               fontSize: "9px",
@@ -97,94 +122,71 @@ export function CatalogCard({
           </span>
         </div>
 
-        {/* Credits badge */}
-        <div className="absolute bottom-3 right-4">
-          <div
-            className="rounded-lg px-2.5 py-1 backdrop-blur-sm"
-            style={{ backgroundColor: "rgba(0,0,0,0.3)" }}
+
+        {/* Description overlay — appears ONLY on hover/tap of the image area */}
+        <div
+          className={`absolute inset-0 p-5 flex items-center transition-opacity duration-300 pointer-events-none ${tapped ? "opacity-100" : "opacity-0 group-hover/image:opacity-100"}`}
+          style={{
+            background: "linear-gradient(to bottom, rgba(10,22,40,0.86) 0%, rgba(10,22,40,0.92) 100%)",
+            backdropFilter: "blur(2px)",
+            WebkitBackdropFilter: "blur(2px)",
+          }}
+        >
+          <p
+            className="line-clamp-5"
+            style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "13px",
+              color: "rgba(255,255,255,0.94)",
+              lineHeight: 1.65,
+            }}
           >
-            <span
-              style={{
-                fontFamily: "var(--font-body)",
-                fontSize: "12px",
-                fontWeight: 700,
-                color: "rgba(255,255,255,0.9)",
-              }}
-            >
-              {credits}
-            </span>
-            <span
-              style={{
-                fontFamily: "var(--font-label)",
-                fontSize: "8px",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.7)",
-                marginLeft: "4px",
-              }}
-            >
-              credits
-            </span>
-          </div>
+            {description || "No description provided."}
+          </p>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-5 flex-1 flex flex-col">
+      {/* ── CONTENT PANEL (bottom) ── */}
+      <div className="p-4 flex-1 flex flex-col">
+        {/* Title — reserves 2 lines of space so buttons line up across cards */}
         <h3
           className="line-clamp-2"
           style={{
             fontFamily: "var(--font-body)",
-            fontSize: "16px",
+            fontSize: "14px",
             fontWeight: 700,
             color: "var(--text-primary)",
             lineHeight: 1.3,
+            minHeight: "2.6em", // 2 lines × 1.3 line-height
           }}
         >
           {title}
         </h3>
 
-        <p
-          className="mt-2 line-clamp-2"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "13px",
-            color: "var(--text-body)",
-            lineHeight: 1.65,
-          }}
-        >
-          {description}
-        </p>
-
-        {/* Meta row — pinned to bottom of content area */}
-        <div className="flex items-center gap-3 mt-auto pt-4">
-          <span style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+        {/* Meta row */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <span style={{ fontFamily: "var(--font-body)", fontSize: "11px", color: "var(--text-muted)" }}>
             {duration}
           </span>
           <span style={{ color: "var(--border-default)" }}>·</span>
-          <span style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+          <span style={{ fontFamily: "var(--font-body)", fontSize: "11px", color: "var(--text-muted)" }}>
             {modules} modules
           </span>
           {accreditation && (
             <>
               <span style={{ color: "var(--border-default)" }}>·</span>
-              <span style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+              <span style={{ fontFamily: "var(--font-body)", fontSize: "11px", color: "var(--text-muted)" }}>
                 {accreditation}
               </span>
             </>
           )}
         </div>
-      </div>
 
-      {/* Footer */}
-      <div
-        className="flex items-center justify-between px-5 py-3.5"
-        style={{ borderTop: "1px solid var(--border-default)", backgroundColor: "var(--bg-surface)" }}
-      >
+        {/* Action — full-width at bottom */}
         {enrollStatus === "available" ? (
           <button
             onClick={() => onEnroll?.(id)}
-            className="rounded-[5px] px-5 py-2 transition-colors duration-200"
+            className="mt-auto w-full rounded-lg transition-opacity duration-200 hover:opacity-90"
             style={{
               fontFamily: "var(--font-label)",
               fontSize: "11px",
@@ -192,73 +194,33 @@ export function CatalogCard({
               textTransform: "uppercase",
               backgroundColor: "var(--btn-primary)",
               color: "var(--teal-50)",
+              paddingTop: "10px",
+              paddingBottom: "10px",
+              marginTop: "16px",
             }}
           >
             Enroll
           </button>
-        ) : enrollStatus === "enrolled" ? (
-          <Link href={`/play?courseId=${id}`}>
-            <span
-              className="rounded-[5px] px-5 py-2 transition-colors duration-200 inline-block"
-              style={{
-                fontFamily: "var(--font-label)",
-                fontSize: "11px",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                backgroundColor: "var(--btn-primary)",
-                color: "var(--teal-50)",
-              }}
-            >
-              Start Course
-            </span>
-          </Link>
-        ) : enrollStatus === "in_progress" ? (
-          <Link href={`/play?courseId=${id}`}>
-            <span
-              className="rounded-[5px] px-5 py-2 transition-colors duration-200 inline-block"
-              style={{
-                fontFamily: "var(--font-label)",
-                fontSize: "11px",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                backgroundColor: "var(--btn-primary)",
-                color: "var(--teal-50)",
-              }}
-            >
-              Continue
-            </span>
-          </Link>
         ) : (
-          <Link href={`/play?courseId=${id}`}>
-            <span
-              className="rounded-[5px] px-5 py-2 transition-colors duration-200 inline-block"
-              style={{
-                fontFamily: "var(--font-label)",
-                fontSize: "11px",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                backgroundColor: "var(--bg-raised)",
-                color: "var(--text-muted)",
-                border: "1.5px solid var(--border-default)",
-              }}
-            >
-              Review
-            </span>
+          <Link
+            href={`/play?courseId=${id}`}
+            className="mt-auto inline-block w-full text-center rounded-lg transition-opacity duration-200 hover:opacity-90"
+            style={{
+              fontFamily: "var(--font-label)",
+              fontSize: "11px",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              backgroundColor: enrollStatus === "completed" ? "var(--bg-surface)" : "var(--btn-primary)",
+              color: enrollStatus === "completed" ? "var(--text-muted)" : "var(--teal-50)",
+              border: enrollStatus === "completed" ? "1px solid var(--border-default)" : "none",
+              paddingTop: "10px",
+              paddingBottom: "10px",
+              marginTop: "16px",
+            }}
+          >
+            {enrollStatus === "enrolled" ? "Start Course" : enrollStatus === "in_progress" ? "Continue" : "Review"}
           </Link>
         )}
-
-        <button
-          className="rounded-[5px] px-4 py-2 transition-colors duration-200 hover:bg-[var(--teal-50)]"
-          style={{
-            fontFamily: "var(--font-label)",
-            fontSize: "11px",
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            color: "var(--text-muted)",
-          }}
-        >
-          Details
-        </button>
       </div>
     </motion.div>
   );

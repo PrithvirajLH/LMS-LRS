@@ -7,8 +7,9 @@ import { CourseCard } from "@/components/training/course-card";
 import type { CourseStatus } from "@/components/dashboard/course-timeline-card";
 
 interface Course {
-  id: string; title: string; category: string; duration: string; credits: number;
+  id: string; title: string; description?: string; category: string; duration: string; credits: number;
   progress: number; status: CourseStatus; dueIn?: string; currentModule?: string; color: string;
+  thumbnailUrl?: string;
 }
 
 function mapStatus(status: string, dueDate?: string): CourseStatus {
@@ -38,12 +39,13 @@ export default function TrainingPage() {
       .then((r) => r.json())
       .then((data) => {
         if (data.courses) {
-          setAllCourses(data.courses.map((c: { id: string; title: string; category: string; duration: string; credits: number; progress: number; status: string; dueDate: string; color: string }) => ({
+          setAllCourses(data.courses.map((c: { id: string; title: string; category: string; duration: string; credits: number; progress: number; status: string; dueDate: string; color: string; thumbnailUrl?: string }) => ({
             id: c.id, title: c.title, category: c.category, duration: c.duration,
             credits: c.credits, progress: c.progress,
             status: mapStatus(c.status, c.dueDate),
             dueIn: getDueLabel(c.dueDate, c.status),
             color: c.color || "from-[#445A73] to-[#A8BDD4]",
+            thumbnailUrl: c.thumbnailUrl,
           })));
         }
       })
@@ -93,10 +95,10 @@ export default function TrainingPage() {
         <>
           <FilterBar search={search} onSearchChange={setSearch} activeFilter={activeFilter} onFilterChange={setActiveFilter} sortBy={sortBy} onSortChange={setSortBy} filters={filters} />
           <LayoutGroup>
-            <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               <AnimatePresence mode="popLayout">
                 {filtered.map((course, idx) => (
-                  <CourseCard key={course.id} courseId={course.id} title={course.title} category={course.category} duration={course.duration} credits={course.credits} progress={course.progress} status={course.status} dueIn={course.dueIn} currentModule={course.currentModule} color={course.color} index={idx} />
+                  <CourseCard key={course.id} courseId={course.id} title={course.title} description={course.description} category={course.category} duration={course.duration} credits={course.credits} progress={course.progress} status={course.status} dueIn={course.dueIn} currentModule={course.currentModule} color={course.color} thumbnailUrl={course.thumbnailUrl} index={idx} />
                 ))}
               </AnimatePresence>
             </motion.div>

@@ -7,7 +7,56 @@ import { getEffectiveMethod } from "@/lib/lrs/method-override";
 import { parseMultipartMixed, storeAttachment, validateAttachments, buildMultipartResponse } from "@/lib/lrs/attachments";
 import { xapiLimiter } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import type { LaunchTokenEntity } from "@/lib/lrs/launch-tokens";
 import type { XAPIStatement, StatementQueryParams } from "@/lib/lrs/types";
+
+const LMS_HOMEPAGE = "https://lms.creativeminds.com";
+
+// Enforce that a statement posted with launch-token auth stays inside the
+// scope the token was minted for: the bound user, the bound activity, and
+// the bound registration. Mutates `stmt` in place.
+function bindStatementToToken(
+  stmt: XAPIStatement,
+  token: LaunchTokenEntity
+): { ok: true } | { ok: false; message: string } {
+  // Only Activity targets are allowed from a launch token. StatementRef
+  // (used for voiding) and Agent/Group objects are out of scope.
+  const objType =
+    (stmt.object as { objectType?: string }).objectType || "Activity";
+  if (objType !== "Activity") {
+    return {
+      ok: false,
+      message: "Launch tokens may only target Activity objects",
+    };
+  }
+
+  const objId = (stmt.object as { id?: string }).id || "";
+  if (objId !== token.activityId && !objId.startsWith(token.activityId)) {
+    return {
+      ok: false,
+      message: `Statement object is outside the launched activity scope`,
+    };
+  }
+
+  // Voiding is a privileged operation; a learner's launch token can't issue it.
+  if (stmt.verb?.id === "http://adlnet.gov/expapi/verbs/voided") {
+    return { ok: false, message: "Launch tokens cannot void statements" };
+  }
+
+  // Server is the source of truth for actor identity — overwrite whatever the
+  // client claimed. Same for the registration that ties this statement to a
+  // specific launch.
+  stmt.actor = {
+    objectType: "Agent",
+    account: { homePage: LMS_HOMEPAGE, name: token.email },
+    name: token.userName,
+  };
+
+  stmt.context = stmt.context || {};
+  stmt.context.registration = token.registration;
+
+  return { ok: true };
+}
 
 // POST /api/xapi/statements — Store statements (or dispatch method override)
 export async function POST(request: NextRequest) {
@@ -77,6 +126,21 @@ export async function POST(request: NextRequest) {
       return xapiError("Request body must contain at least one statement", 400);
     }
 
+    if (auth.launchToken) {
+      for (const stmt of statements) {
+        const result = bindStatementToToken(stmt, auth.launchToken);
+        if (!result.ok) {
+          logger.warn("Launch-token statement rejected", {
+            token: auth.launchToken.rowKey.slice(0, 8),
+            email: auth.launchToken.email,
+            activity: auth.launchToken.activityId,
+            reason: result.message,
+          });
+          return xapiError(result.message, 403);
+        }
+      }
+    }
+
     const { ids, conflicts } = await storeStatements(statements, auth.credential);
 
     if (conflicts.length > 0) {
@@ -143,6 +207,19 @@ export async function PUT(request: NextRequest) {
     const stmt = body as XAPIStatement;
     // Set the statement ID from the query parameter
     stmt.id = statementId;
+
+    if (auth.launchToken) {
+      const result = bindStatementToToken(stmt, auth.launchToken);
+      if (!result.ok) {
+        logger.warn("Launch-token PUT rejected", {
+          token: auth.launchToken.rowKey.slice(0, 8),
+          email: auth.launchToken.email,
+          activity: auth.launchToken.activityId,
+          reason: result.message,
+        });
+        return xapiError(result.message, 403);
+      }
+    }
 
     const { ids, conflicts } = await storeStatements([stmt], auth.credential);
 

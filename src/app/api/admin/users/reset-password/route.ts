@@ -4,13 +4,20 @@ import { adminResetPassword } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
 import { getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { AdminResetPasswordSchema } from "@/lib/schemas";
 
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["admin", "instructor"]);
 
-    const { userId, newPassword } = await request.json();
-    if (!userId || !newPassword) return NextResponse.json({ error: true, message: "userId and newPassword required" }, { status: 400 });
+    const parsed = AdminResetPasswordSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const { userId, newPassword } = parsed.data;
 
     const result = await adminResetPassword(userId, newPassword);
     if ("error" in result) return NextResponse.json({ error: true, message: result.error }, { status: 400 });

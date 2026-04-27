@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       modules: c.moduleCount,
       accreditation: c.accreditation,
       color: c.color || "from-[#445A73] to-[#A8BDD4]",
+      thumbnailUrl: c.thumbnailUrl || "",
       enrollStatus,
       launchUrl: getCourselaunchUrl(c.blobBasePath, c.launchFile),
     };

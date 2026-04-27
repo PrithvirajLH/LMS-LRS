@@ -33,6 +33,15 @@ const ACTION_CATEGORIES: Record<string, { label: string; color: string; bg: stri
   "credential.create":    { label: "Credential Created", color: "text-teal-700",    bg: "bg-teal-50",     icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" },
   "credential.activate":  { label: "Credential On",      color: "text-green-600",   bg: "bg-green-50",    icon: "M13 10V3L4 14h7v7l9-11h-7z" },
   "credential.deactivate":{ label: "Credential Off",     color: "text-red-600",     bg: "bg-red-50",      icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" },
+  "auth.login":           { label: "Login",              color: "text-emerald-700", bg: "bg-emerald-50",  icon: "M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" },
+  "auth.login_failed":    { label: "Failed Login",       color: "text-red-700",     bg: "bg-red-50",      icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" },
+  "auth.logout":          { label: "Logout",             color: "text-slate-600",   bg: "bg-slate-50",    icon: "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" },
+  "course.launch":        { label: "Course Launched",    color: "text-blue-700",    bg: "bg-blue-50",     icon: "M13 10V3L4 14h7v7l9-11h-7z" },
+  "course.delete":        { label: "Course Deleted",     color: "text-red-700",     bg: "bg-red-50",      icon: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" },
+  "enrollment.complete":  { label: "Enrollment Complete",color: "text-green-700",   bg: "bg-green-50",    icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+  "enrollment.renew":     { label: "Enrollment Renewed", color: "text-teal-700",    bg: "bg-teal-50",     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" },
+  "enrollment.self_enroll":{ label: "Self-Enrollment",   color: "text-blue-700",    bg: "bg-blue-50",     icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
+  "lrs.purge":            { label: "LRS Purged",         color: "text-red-700",     bg: "bg-red-50",      icon: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" },
 };
 
 const FALLBACK_ACTION = { label: "Action", color: "text-gray-600", bg: "bg-gray-50", icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" };

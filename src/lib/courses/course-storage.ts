@@ -35,6 +35,16 @@ export interface CourseEntity {
   createdAt: string;
   updatedAt: string;
   publishedAt: string;
+  // Completion policy. Both optional — undefined falls back to org-wide
+  // defaults (see src/lib/settings.ts) and finally hardcoded fallbacks.
+  hasAssessment?: boolean;   // true = score gate enforced; false = trust verbs/completed
+  passingScore?: number;     // 0..1 scaled, only used when hasAssessment is true
+  // CE credit validity. undefined / 0 = credit never expires.
+  // e.g. 12 = credit valid for 12 months from completion date.
+  validityPeriodMonths?: number;
+  // Optional course thumbnail. Stored as a proxy URL pointing to
+  // /api/courses/{courseId}/_thumbnail.{ext}. Falls back to gradient `color`.
+  thumbnailUrl?: string;
 }
 
 // Ensure the courses container exists
@@ -297,6 +307,10 @@ export async function updateCourse(courseId: string, updates: Partial<CourseEnti
     { partitionKey: "course", rowKey: courseId, ...updates },
     "Merge"
   );
+  // Invalidate caches so an instructor-edited completion policy takes
+  // effect immediately on the next dashboard / launch hit.
+  courseCache.delete(courseId);
+  allCoursesMapCache = null;
 }
 
 /**

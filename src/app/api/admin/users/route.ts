@@ -1,21 +1,24 @@
 import { requireAuth, handleAuthError } from "@/lib/auth/guard";
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, listUsers } from "@/lib/users/user-storage";
-import { adminUpdateUser, type UserRole } from "@/lib/auth/session";
+import { adminUpdateUser } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
 import { getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { CreateUserSchema, UpdateUserRoleSchema } from "@/lib/schemas";
 
 // POST /api/admin/users — Create a new user
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["instructor", "admin"]);
-    const body = await request.json();
-    const { name, email, employeeId, facility, department, position, status } = body;
-
-    if (!name || !email || !employeeId || !facility) {
-      return NextResponse.json({ error: true, message: "name, email, employeeId, and facility are required" }, { status: 400 });
+    const parsed = CreateUserSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
     }
+    const { name, email, employeeId, facility, department, position, status } = parsed.data;
 
     const user = await createUser({
       name,
@@ -63,15 +66,16 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["admin", "instructor"]);
-    const { userId, role, status } = await request.json();
-    if (!userId) return NextResponse.json({ error: true, message: "userId required" }, { status: 400 });
-
-    const validRoles: UserRole[] = ["learner", "instructor", "admin"];
-    if (role && !validRoles.includes(role)) {
-      return NextResponse.json({ error: true, message: `Invalid role. Must be one of: ${validRoles.join(", ")}` }, { status: 400 });
+    const parsed = UpdateUserRoleSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
     }
+    const { userId, role, status } = parsed.data;
 
-    const updates: { role?: UserRole; status?: string } = {};
+    const updates: { role?: typeof role; status?: string } = {};
     if (role) updates.role = role;
     if (status) updates.status = status;
 

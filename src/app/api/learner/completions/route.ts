@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getUserEnrollments } from "@/lib/users/user-storage";
 import { getCourse } from "@/lib/courses/course-storage";
+import { getExpirationStatus, daysUntilExpiry } from "@/lib/courses/expiration";
 
-// GET /api/learner/completions — Current user's completed courses
+// GET /api/learner/completions — Current user's completed courses (with CE expiration)
 export async function GET(request: NextRequest) {
   try {
     const sessionId = request.cookies.get("lms_session")?.value;
@@ -28,14 +29,29 @@ export async function GET(request: NextRequest) {
         duration: course?.duration || "",
         accreditation: course?.accreditation || "",
         timeSpent: enrollment.timeSpent,
+        // CE credit expiration
+        expiresDate: enrollment.expiresAt || "",
+        expirationStatus: getExpirationStatus(enrollment.expiresAt),
+        daysUntilExpiry: daysUntilExpiry(enrollment.expiresAt),
+        validityPeriodMonths: course?.validityPeriodMonths || 0,
       });
     }
 
     completions.sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
 
-    return NextResponse.json({ completions });
+    // Summary: counts by expiration status
+    const summary = {
+      total: completions.length,
+      valid: completions.filter((c) => c.expirationStatus === "valid").length,
+      expiringSoon: completions.filter((c) => c.expirationStatus === "expiring_soon").length,
+      expired: completions.filter((c) => c.expirationStatus === "expired").length,
+      noExpiry: completions.filter((c) => c.expirationStatus === "no_expiry").length,
+    };
+
+    return NextResponse.json({ completions, summary });
   } catch (e) {
-    console.error("GET /api/learner/completions error:", e);
+    const { logger } = await import("@/lib/logger");
+    logger.error("GET /api/learner/completions failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to load completions" }, { status: 500 });
   }
 }

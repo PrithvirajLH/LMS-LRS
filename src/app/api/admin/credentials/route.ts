@@ -7,12 +7,23 @@ import { audit } from "@/lib/audit";
 import { getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import type { CredentialEntity } from "@/lib/lrs/types";
+import {
+  CreateCredentialSchema,
+  ToggleCredentialSchema,
+} from "@/lib/schemas";
 
 // POST /api/admin/credentials — Create a new API credential
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["admin"]);
-    const body = await request.json();
+    const parsed = CreateCredentialSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
     const displayName: string = body.displayName || "Unnamed Credential";
     const scopes: string = body.scopes || "statements/write,statements/read";
 
@@ -83,11 +94,14 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["admin"]);
-    const body = await request.json();
-    const { apiKey, isActive } = body;
-    if (!apiKey) {
-      return NextResponse.json({ error: true, message: "apiKey is required" }, { status: 400 });
+    const parsed = ToggleCredentialSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
     }
+    const { apiKey, isActive } = parsed.data;
 
     const table = await getTableClient("credentials");
     await table.updateEntity(

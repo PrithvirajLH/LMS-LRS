@@ -8,6 +8,7 @@ import type { EnrollStatus } from "@/components/catalog/catalog-card";
 interface CatalogCourse {
   id: string; title: string; description: string; category: string; duration: string;
   credits: number; modules: number; enrollStatus: EnrollStatus; accreditation?: string; color: string;
+  thumbnailUrl?: string;
 }
 
 const categories = ["All", "Compliance", "Clinical Skills", "Safety", "Policy", "Wellness"];
@@ -23,7 +24,7 @@ export default function CourseCatalog() {
       .then((r) => r.json())
       .then((data) => {
         if (data.courses) {
-          setCourses(data.courses.map((c: { id: string; title: string; description: string; category: string; duration: string; credits: number; modules: number; enrollStatus: string; accreditation: string; color: string }) => ({
+          setCourses(data.courses.map((c: { id: string; title: string; description: string; category: string; duration: string; credits: number; modules: number; enrollStatus: string; accreditation: string; color: string; thumbnailUrl?: string }) => ({
             ...c,
             enrollStatus: (c.enrollStatus || "available") as EnrollStatus,
           })));
@@ -68,7 +69,19 @@ export default function CourseCatalog() {
       <div>
         <h1 style={{ fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "var(--text-display-l)", color: "var(--text-primary)" }}>Course Catalog</h1>
         <p className="mt-2" style={{ fontFamily: "var(--font-body)", fontSize: "15px", color: "var(--text-body)" }}>
-          {courses.length > 0 ? `${courses.filter(c => c.enrollStatus === "available").length} courses available · ${courses.filter(c => c.enrollStatus === "enrolled").length} enrolled` : "No published courses yet."}
+          {courses.length > 0 ? (() => {
+            const available = courses.filter((c) => c.enrollStatus === "available").length;
+            // Anything the learner has already started or finished counts as "yours"
+            const myCourses = courses.filter((c) =>
+              c.enrollStatus === "enrolled" ||
+              c.enrollStatus === "in_progress" ||
+              c.enrollStatus === "completed"
+            ).length;
+            const parts = [`${courses.length} total`];
+            if (available > 0) parts.push(`${available} available`);
+            if (myCourses > 0) parts.push(`${myCourses} ${myCourses === 1 ? "yours" : "yours"}`);
+            return parts.join(" · ");
+          })() : "No published courses yet."}
         </p>
       </div>
 
@@ -89,7 +102,7 @@ export default function CourseCatalog() {
           </div>
 
           <LayoutGroup>
-            <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               <AnimatePresence mode="popLayout">
                 {filtered.map((course, idx) => (
                   <CatalogCard key={course.id} {...course} index={idx} onEnroll={handleEnroll} />

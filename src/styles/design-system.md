@@ -3,10 +3,11 @@
 ## Input Colours
 #0A1628 · #F5F8FA · #E7F0F7 · #E1EFFC · #647A93
 
-## Fonts
-- **Forum** — Navigation, labels, tags, badges, buttons (uppercase, letter-spacing 0.1em+)
-- **Instrument Serif** — Hero titles, course headings, part dividers (italic, 16px minimum)
-- **Domine** — Body copy, descriptions, stat values, forms (400/700)
+## Fonts — Healthcare Compliance Typography (USWDS Federal Standard)
+- **Public Sans** (400/500/600/700) — Body copy, descriptions, navigation, labels, buttons, badges, stat values, forms. Uppercase + letter-spacing for labels/buttons.
+- **Source Serif 4** (400/600/700, optional italic) — Hero titles, course headings, page titles, editorial moments. 16px minimum.
+
+Both are USWDS official typefaces — used by healthcare.gov, Medicare.gov, CMS, and federal healthcare portals. WCAG 2.1 AA compliant, designed for screens, optimized for older users and varied vision.
 
 ## Key Colours
 | Role | Name | Hex |
@@ -21,10 +22,10 @@
 | Highlight | Sky Fill | #E1EFFC |
 
 ## Key Rules
-1. Forum = structure. Instrument Serif = editorial. Domine = content. One font per layer.
+1. Public Sans = everything UI/body/labels. Source Serif 4 = hero/editorial only.
 2. On #0A1628, text is #EAF0F6 (not white). Muted is #88A8C8.
 3. Body text uses #223548 — never pure black.
 4. #0A1628 only for dark UI zones (nav, sidebar, hero). Never content areas.
-5. Domine Bold owns all numbers. Forum uppercase owns all labels.
-6. Instrument Serif italic minimum 16px. Forum minimum 8px. Domine minimum 10px.
+5. Public Sans 700 owns all numbers. Public Sans uppercase + tracking owns all labels.
+6. Source Serif 4 minimum 16px (italic for hero titles). Public Sans labels minimum 9px.
 7. Slate = primary actions. Sky blue = completed. Amber = due soon. Red = overdue.

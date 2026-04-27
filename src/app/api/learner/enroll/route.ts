@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { createEnrollment } from "@/lib/users/user-storage";
 import { getCourse } from "@/lib/courses/course-storage";
+import { audit } from "@/lib/audit";
+import { getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
+import { EnrollSchema } from "@/lib/schemas";
 
 // POST /api/learner/enroll — Self-enroll in a published course
 export async function POST(request: NextRequest) {
@@ -12,8 +16,14 @@ export async function POST(request: NextRequest) {
     const session = await getSession(sessionId);
     if (!session) return NextResponse.json({ error: true, message: "Session expired" }, { status: 401 });
 
-    const { courseId } = await request.json();
-    if (!courseId) return NextResponse.json({ error: true, message: "courseId is required" }, { status: 400 });
+    const parsed = EnrollSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const { courseId } = parsed.data;
 
     // Verify course exists and is published
     const course = await getCourse(courseId);
@@ -32,9 +42,21 @@ export async function POST(request: NextRequest) {
       dueDate,
     });
 
+    audit({
+      action: "enrollment.self_enroll",
+      actorId: session.userId,
+      actorName: session.userName,
+      actorRole: session.role,
+      targetType: "enrollment",
+      targetId: `${session.userId}:${courseId}`,
+      summary: `${session.userName} self-enrolled in "${course.title}"`,
+      details: { courseId, dueDate },
+      ip: getClientIp(request),
+    });
+
     return NextResponse.json(enrollment, { status: 201 });
   } catch (e) {
-    console.error("POST /api/learner/enroll error:", e);
+    logger.error("POST /api/learner/enroll failed", { error: e });
     return NextResponse.json({ error: true, message: "Failed to enroll" }, { status: 500 });
   }
 }

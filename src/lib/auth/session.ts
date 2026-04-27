@@ -6,7 +6,21 @@ import { sessionCache } from "@/lib/cache";
 import { logger } from "@/lib/logger";
 
 const SESSION_COOKIE = "lms_session";
+// Absolute max session lifetime (HIPAA: a session token may live for at
+// most a working day, even with continued activity).
 const SESSION_TTL_HOURS = 24;
+// Idle timeout — session expires this many minutes after the last
+// authenticated request. HIPAA-aligned default; tune per facility via
+// SESSION_IDLE_TIMEOUT_MINUTES env var (15-30 typical).
+const SESSION_IDLE_TIMEOUT_MINUTES = parseInt(
+  process.env.SESSION_IDLE_TIMEOUT_MINUTES || "30",
+  10
+);
+// How often to flush a session's lastActivityAt back to Azure Tables.
+// We don't write on every request — only when activity is older than this
+// fraction of the idle timeout. Cuts table writes by ~10x.
+const ACTIVITY_FLUSH_THRESHOLD_MS =
+  (SESSION_IDLE_TIMEOUT_MINUTES * 60 * 1000) / 4;
 
 /** Validate password meets minimum strength requirements. Returns error message or null. */
 export function validatePassword(password: string): string | null {
@@ -33,7 +47,12 @@ export interface SessionEntity {
   email: string;
   role: UserRole;
   facility: string;
+  /** Idle expiration — slides forward on every authenticated request. */
   expiresAt: string;
+  /** Hard cutoff — never extends past 24h from session creation. */
+  absoluteExpiresAt?: string;
+  /** Last time the user made an authenticated request. */
+  lastActivityAt?: string;
 }
 
 // ── User with auth fields ──
@@ -176,7 +195,16 @@ async function findUserById(userId: string): Promise<AuthUser | null> {
 export async function createSession(user: AuthUser): Promise<string> {
   const table = await getTableClient("sessions");
   const sessionId = randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000).toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  // Idle expiration — slides forward on each request
+  const expiresAt = new Date(
+    now.getTime() + SESSION_IDLE_TIMEOUT_MINUTES * 60 * 1000
+  ).toISOString();
+  // Absolute hard cutoff — never extends past this
+  const absoluteExpiresAt = new Date(
+    now.getTime() + SESSION_TTL_HOURS * 60 * 60 * 1000
+  ).toISOString();
 
   const entity: SessionEntity = {
     partitionKey: "session",
@@ -187,6 +215,8 @@ export async function createSession(user: AuthUser): Promise<string> {
     role: user.role || "learner",
     facility: user.facility,
     expiresAt,
+    absoluteExpiresAt,
+    lastActivityAt: nowIso,
   };
 
   await table.createEntity(entity);
@@ -199,24 +229,66 @@ export async function createSession(user: AuthUser): Promise<string> {
     role: entity.role,
     facility: entity.facility,
     expiresAt: entity.expiresAt,
+    absoluteExpiresAt: entity.absoluteExpiresAt,
+    lastActivityAt: entity.lastActivityAt,
   });
 
   return sessionId;
 }
 
-// ── Get session (validate) — cache-first ──
+// ── Get session (validate) — cache-first, with sliding idle timeout ──
+//
+// Two expiry checks per request:
+//  1. Idle timeout (expiresAt) — slides forward on each call. Default 30 min.
+//  2. Absolute timeout (absoluteExpiresAt) — never extends. Default 24h.
+//
+// Activity time is flushed to Azure Tables only when older than 1/4 of the
+// idle window (not on every request) — keeps table writes manageable while
+// staying HIPAA-aligned.
 export async function getSession(sessionId: string): Promise<SessionEntity | null> {
   if (!sessionId) return null;
 
-  // Check in-memory cache first (avoids Azure Table read)
+  const now = Date.now();
+  const newIdleExpiresAtMs = now + SESSION_IDLE_TIMEOUT_MINUTES * 60 * 1000;
+
+  // ── Cache hit path ──
   const cached = sessionCache.get(sessionId);
   if (cached) {
-    if (new Date(cached.expiresAt) < new Date()) {
+    // Idle expiry
+    if (new Date(cached.expiresAt).getTime() < now) {
       sessionCache.delete(sessionId);
-      // Async cleanup — don't block the response
       getTableClient("sessions").then((t) => t.deleteEntity("session", sessionId)).catch(() => {});
       return null;
     }
+    // Absolute expiry — never slide past this
+    if (cached.absoluteExpiresAt && new Date(cached.absoluteExpiresAt).getTime() < now) {
+      sessionCache.delete(sessionId);
+      getTableClient("sessions").then((t) => t.deleteEntity("session", sessionId)).catch(() => {});
+      return null;
+    }
+
+    const absoluteCutoff = cached.absoluteExpiresAt
+      ? new Date(cached.absoluteExpiresAt).getTime()
+      : Infinity;
+    const slidExpiresAtMs = Math.min(newIdleExpiresAtMs, absoluteCutoff);
+    const slidExpiresAt = new Date(slidExpiresAtMs).toISOString();
+    const nowIso = new Date(now).toISOString();
+
+    // Update cache immediately (cheap)
+    cached.expiresAt = slidExpiresAt;
+    cached.lastActivityAt = nowIso;
+
+    // Flush to Azure Tables only if last write is older than threshold
+    const lastFlush = cached.lastActivityAt ? new Date(cached.lastActivityAt).getTime() : 0;
+    if (now - lastFlush > ACTIVITY_FLUSH_THRESHOLD_MS) {
+      getTableClient("sessions").then((t) =>
+        t.updateEntity(
+          { partitionKey: "session", rowKey: sessionId, expiresAt: slidExpiresAt, lastActivityAt: nowIso },
+          "Merge"
+        )
+      ).catch(() => { /* best-effort flush */ });
+    }
+
     return {
       partitionKey: "session",
       rowKey: sessionId,
@@ -225,21 +297,39 @@ export async function getSession(sessionId: string): Promise<SessionEntity | nul
       email: cached.email,
       role: cached.role as UserRole,
       facility: cached.facility,
-      expiresAt: cached.expiresAt,
+      expiresAt: slidExpiresAt,
+      absoluteExpiresAt: cached.absoluteExpiresAt,
+      lastActivityAt: nowIso,
     };
   }
 
-  // Cache miss — read from Azure Tables
+  // ── Cache miss — read from Azure Tables ──
   const table = await getTableClient("sessions");
 
   try {
     const entity = await table.getEntity<SessionEntity>("session", sessionId);
 
-    // Check expiry
-    if (new Date(entity.expiresAt) < new Date()) {
+    // Idle + absolute expiry checks
+    if (new Date(entity.expiresAt).getTime() < now) {
       await table.deleteEntity("session", sessionId);
       return null;
     }
+    if (entity.absoluteExpiresAt && new Date(entity.absoluteExpiresAt).getTime() < now) {
+      await table.deleteEntity("session", sessionId);
+      return null;
+    }
+
+    const absoluteCutoff = entity.absoluteExpiresAt
+      ? new Date(entity.absoluteExpiresAt).getTime()
+      : Infinity;
+    const slidExpiresAt = new Date(Math.min(newIdleExpiresAtMs, absoluteCutoff)).toISOString();
+    const nowIso = new Date(now).toISOString();
+
+    // Slide forward in storage too (we already had to read the row)
+    await table.updateEntity(
+      { partitionKey: "session", rowKey: sessionId, expiresAt: slidExpiresAt, lastActivityAt: nowIso },
+      "Merge"
+    );
 
     // Populate cache for subsequent requests
     sessionCache.set(sessionId, {
@@ -248,10 +338,12 @@ export async function getSession(sessionId: string): Promise<SessionEntity | nul
       email: entity.email,
       role: entity.role,
       facility: entity.facility,
-      expiresAt: entity.expiresAt,
+      expiresAt: slidExpiresAt,
+      absoluteExpiresAt: entity.absoluteExpiresAt,
+      lastActivityAt: nowIso,
     });
 
-    return entity;
+    return { ...entity, expiresAt: slidExpiresAt, lastActivityAt: nowIso };
   } catch (e: unknown) {
     const err = e as { statusCode?: number };
     if (err.statusCode === 404) return null;

@@ -6,18 +6,27 @@ import {
   updateCourse,
   deleteCourse,
   getCourselaunchUrl,
-  type CourseEntity,
 } from "@/lib/courses/course-storage";
 import { audit } from "@/lib/audit";
 import { getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import {
+  SaveCourseSchema,
+  UpdateCourseSchema,
+  DeleteCourseQuerySchema,
+} from "@/lib/schemas";
 
 // POST /api/admin/courses — Save course metadata (after upload)
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["instructor", "admin"]);
-    const body = await request.json();
-
+    const parsed = SaveCourseSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
     const {
       courseId,
       title,
@@ -33,14 +42,7 @@ export async function POST(request: NextRequest) {
       interactionCount,
       totalActivities,
       color,
-    } = body;
-
-    if (!courseId || !title || !activityId || !blobBasePath) {
-      return NextResponse.json(
-        { error: true, message: "courseId, title, activityId, and blobBasePath are required" },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     const now = new Date().toISOString();
     const course = await saveCourseMetadata({
@@ -118,8 +120,14 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["instructor", "admin"]);
-    const body = await request.json();
-    const { courseId, ...updates } = body;
+    const parsed = UpdateCourseSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const { courseId, ...updates } = parsed.data;
 
     if (!courseId) {
       return NextResponse.json(
@@ -135,7 +143,10 @@ export async function PATCH(request: NextRequest) {
 
     updates.updatedAt = new Date().toISOString();
 
-    await updateCourse(courseId, updates);
+    // `updates` may contain `null` for completion-policy fields (clears the
+    // override on Azure Table Storage). The CourseEntity types these as
+    // `T | undefined`, so cast through the storage layer's loose Partial.
+    await updateCourse(courseId, updates as Parameters<typeof updateCourse>[1]);
 
     audit({
       action: updates.status === "published" ? "course.publish" : "course.update",
@@ -161,14 +172,16 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["admin"]);
-    const courseId = request.nextUrl.searchParams.get("courseId");
-
-    if (!courseId) {
+    const parsed = DeleteCourseQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams)
+    );
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: true, message: "courseId query parameter is required" },
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
         { status: 400 }
       );
     }
+    const { courseId } = parsed.data;
 
     const result = await deleteCourse(courseId);
 

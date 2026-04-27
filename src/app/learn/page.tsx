@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { motion } from "motion/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { WelcomeStripV2 } from "@/components/dashboard/welcome-strip-v2";
 import { ProgressGauge } from "@/components/dashboard/progress-gauge";
 import { StatCardBento } from "@/components/dashboard/stat-card-bento";
 import { CourseTimelineCard } from "@/components/dashboard/course-timeline-card";
 import type { CourseStatus } from "@/components/dashboard/course-timeline-card";
+import { CompletionCelebration } from "@/components/celebration/completion-celebration";
 
 interface DashboardData {
   user: { name: string; email: string; role: string; facility: string };
@@ -16,7 +18,7 @@ interface DashboardData {
     status: string; dueDate: string; completedDate: string; score: number;
     color: string; launchUrl: string;
   }>;
-  stats: { totalCourses: number; completed: number; inProgress: number; overdue: number; totalCredits: number; earnedCredits: number };
+  stats: { totalCourses: number; completed: number; inProgress: number; overdue: number; totalCredits: number; earnedCredits: number; expiringSoon: number; expired: number };
   lastActivity: { courseTitle: string; moduleName?: string; courseId?: string; activityId: string; verb: string } | null;
   nextDeadline: { courseTitle: string; daysRemaining: number } | null;
 }
@@ -40,7 +42,70 @@ function mapStatus(status: string, dueDate: string): CourseStatus {
   return "not_started";
 }
 
-export default function LearnDashboard() {
+/**
+ * Reads the `?celebrate={courseId}` URL param and, once dashboard data is
+ * loaded, fires the celebration modal if that course is now completed.
+ *
+ * This handles the "learner closed the player and came back" path. We strip
+ * the param from the URL after surfacing the modal so a refresh doesn't
+ * re-fire it. Wrapped in its own component because `useSearchParams`
+ * requires a Suspense boundary in Next.js.
+ */
+function CelebrationFromQuery({ data }: { data: DashboardData | null }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const celebrateId = searchParams.get("celebrate");
+
+  const [shown, setShown] = useState<{
+    courseTitle: string;
+    score?: number;
+    credits: number;
+  } | null>(null);
+  const [hasFired, setHasFired] = useState(false);
+
+  useEffect(() => {
+    if (!celebrateId || !data || hasFired) return;
+    const course = data.courses.find((c) => c.id === celebrateId);
+
+    // Strip the celebrate param either way so a refresh doesn't re-fire.
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("celebrate");
+    const qs = params.toString();
+    const cleanUrl = qs ? `/learn?${qs}` : "/learn";
+
+    if (!course || course.status !== "completed") {
+      // Stale celebrate param (course not actually complete yet, or
+      // doesn't exist for this learner) — strip silently.
+      setHasFired(true);
+      router.replace(cleanUrl, { scroll: false });
+      return;
+    }
+
+    setHasFired(true);
+    setShown({
+      courseTitle: course.title,
+      score: course.score || undefined,
+      credits: course.credits || 0,
+    });
+    router.replace(cleanUrl, { scroll: false });
+  }, [celebrateId, data, hasFired, router, searchParams]);
+
+  return (
+    <CompletionCelebration
+      open={!!shown}
+      courseTitle={shown?.courseTitle || ""}
+      score={shown?.score}
+      credits={shown?.credits ?? 0}
+      onClose={() => setShown(null)}
+      onViewCertificate={() => {
+        setShown(null);
+        router.push("/learn/completions");
+      }}
+    />
+  );
+}
+
+function LearnDashboardInner() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -68,7 +133,7 @@ export default function LearnDashboard() {
 
   const user = data?.user || { name: "User", email: "", role: "", facility: "" };
   const courses = data?.courses || [];
-  const stats = data?.stats || { totalCourses: 0, completed: 0, inProgress: 0, overdue: 0, totalCredits: 0, earnedCredits: 0 };
+  const stats = data?.stats || { totalCourses: 0, completed: 0, inProgress: 0, overdue: 0, totalCredits: 0, earnedCredits: 0, expiringSoon: 0, expired: 0 };
   const lastActivity = data?.lastActivity || null;
   const nextDeadline = data?.nextDeadline || null;
   const activeCourses = courses.filter((c) => c.status !== "completed");
@@ -87,13 +152,42 @@ export default function LearnDashboard() {
         resumeCourseId={lastActivity?.courseId || courses.find(c => c.status === "in_progress")?.id}
       />
 
+      {/* CE credit renewal banner */}
+      {(stats.expired > 0 || stats.expiringSoon > 0) && (
+        <a
+          href="/learn/completions"
+          className="mt-6 flex items-center gap-4 rounded-2xl px-5 py-4 transition-colors duration-200 hover:opacity-90"
+          style={{
+            backgroundColor: stats.expired > 0 ? "rgba(192, 74, 64, 0.06)" : "var(--amber-50)",
+            border: stats.expired > 0 ? "1px solid rgba(192, 74, 64, 0.2)" : "1px solid var(--amber-100)",
+          }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+            style={{ backgroundColor: stats.expired > 0 ? "rgba(192, 74, 64, 0.1)" : "var(--amber-100)" }}
+          >
+            <span style={{ fontSize: "20px" }}>{stats.expired > 0 ? "⚠" : "⏱"}</span>
+          </div>
+          <div className="flex-1">
+            <p style={{ fontFamily: "var(--font-body)", fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
+              {stats.expired > 0 && `${stats.expired} CE credit${stats.expired > 1 ? "s have" : " has"} expired`}
+              {stats.expired > 0 && stats.expiringSoon > 0 && " · "}
+              {stats.expiringSoon > 0 && `${stats.expiringSoon} expiring soon`}
+            </p>
+            <p className="mt-0.5" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+              View completions to renew before they affect your compliance status →
+            </p>
+          </div>
+        </a>
+      )}
+
       <div className="flex gap-10">
         <div className="flex-1 min-w-0">
           <motion.div className="grid grid-cols-4 gap-3 mb-8" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.15 }}>
-            <StatCardBento label="Training Hours" value={`${stats.earnedCredits} / ${stats.totalCredits}`} color="teal" description="credits earned" />
-            <StatCardBento label="In Progress" value={stats.inProgress} color="teal" description="active courses" />
-            <StatCardBento label="Certificates" value={stats.completed} color="slate" description="earned" />
-            <StatCardBento label="Overdue" value={stats.overdue} color="amber" description={stats.overdue > 0 ? "needs attention" : "all on track"} />
+            <StatCardBento label="Total Courses" value={stats.totalCourses} color="teal" />
+            <StatCardBento label="In Progress" value={stats.inProgress} color="teal" />
+            <StatCardBento label="Certificates" value={stats.completed} color="slate" />
+            <StatCardBento label="Overdue" value={stats.overdue} color="amber" />
           </motion.div>
 
           <div className="flex items-center justify-between mb-5">
@@ -146,6 +240,20 @@ export default function LearnDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Celebration triggered by ?celebrate={courseId} URL param — fires
+          when the learner closes the player and lands back here. */}
+      <CelebrationFromQuery data={data} />
     </div>
+  );
+}
+
+export default function LearnDashboard() {
+  // useSearchParams (used inside CelebrationFromQuery, called from
+  // LearnDashboardInner) requires a Suspense boundary in Next.js 16.
+  return (
+    <Suspense fallback={null}>
+      <LearnDashboardInner />
+    </Suspense>
   );
 }

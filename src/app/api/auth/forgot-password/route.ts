@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createResetToken } from "@/lib/auth/session";
 import { resetLimiter, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import { ForgotPasswordSchema } from "@/lib/schemas";
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
@@ -14,8 +15,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email } = await request.json();
-    if (!email) return NextResponse.json({ error: true, message: "Email is required" }, { status: 400 });
+    const parsed = ForgotPasswordSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const { email } = parsed.data;
 
     const result = await createResetToken(email);
 

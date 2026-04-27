@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTableClient } from "@/lib/azure/table-client";
 import { logger } from "@/lib/logger";
 import type { AuditEntry } from "@/lib/audit";
+import { AuditQuerySchema } from "@/lib/schemas";
 
 /**
  * GET /api/admin/audit — Query the audit trail.
@@ -19,11 +20,19 @@ export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request, ["admin"]);
 
-    const url = request.nextUrl;
-    const actionFilter = url.searchParams.get("action") || undefined;
-    const actorFilter = url.searchParams.get("actorId") || undefined;
-    const limit = Math.min(parseInt(url.searchParams.get("limit") || "50", 10), 200);
-    const months = Math.min(parseInt(url.searchParams.get("months") || "1", 10), 12);
+    const parsed = AuditQuerySchema.safeParse(
+      Object.fromEntries(request.nextUrl.searchParams)
+    );
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: true, message: "Validation failed", issues: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const actionFilter = parsed.data.action;
+    const actorFilter = parsed.data.actorId;
+    const limit = parsed.data.limit ?? 50;
+    const months = parsed.data.months ?? 1;
 
     const table = await getTableClient("auditLog");
     const entries: AuditEntry[] = [];

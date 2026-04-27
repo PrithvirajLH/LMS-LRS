@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { IconUpload, IconExternalLink, IconEye, IconWorldUp, IconWorldOff, IconTrash } from "@tabler/icons-react";
+import { IconUpload, IconExternalLink, IconEye, IconWorldUp, IconWorldOff, IconTrash, IconAdjustments, IconPhoto, IconPhotoUp, IconX } from "@tabler/icons-react";
 
 interface Course {
   rowKey: string;
@@ -18,6 +18,18 @@ interface Course {
   launchUrl: string;
   createdAt: string;
   publishedAt: string;
+  hasAssessment?: boolean;
+  passingScore?: number;
+  validityPeriodMonths?: number;
+  thumbnailUrl?: string;
+}
+
+interface PolicyDraft {
+  hasAssessment: boolean;
+  // null means "use organization default"
+  passingScorePct: number | null;
+  // CE credit validity in months. 0 = never expires.
+  validityPeriodMonths: number;
 }
 
 export default function ManageCoursesPage() {
@@ -41,6 +53,146 @@ export default function ManageCoursesPage() {
 
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+
+  // Policy editor state
+  const [policyTarget, setPolicyTarget] = useState<Course | null>(null);
+  const [policyDraft, setPolicyDraft] = useState<PolicyDraft | null>(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [orgDefaultPct, setOrgDefaultPct] = useState<number>(80);
+
+  // Thumbnail upload state
+  const [thumbnailTarget, setThumbnailTarget] = useState<Course | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+  function openThumbnailModal(course: Course) {
+    setThumbnailTarget(course);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setThumbnailError(null);
+  }
+
+  function closeThumbnailModal() {
+    setThumbnailTarget(null);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setThumbnailError(null);
+    setUploadingThumbnail(false);
+    setIsDragging(false);
+  }
+
+  function handleThumbnailFile(file: File | null) {
+    if (!file) return;
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setThumbnailError("File must be a JPEG, PNG, or WebP image");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setThumbnailError(`File too large (${Math.round(file.size / 1024)}KB). Maximum is 2MB.`);
+      return;
+    }
+    setThumbnailError(null);
+    setThumbnailFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setThumbnailPreview(typeof e.target?.result === "string" ? e.target.result : null);
+    reader.readAsDataURL(file);
+  }
+
+  async function uploadThumbnail() {
+    if (!thumbnailTarget || !thumbnailFile) return;
+    setUploadingThumbnail(true);
+    setThumbnailError(null);
+    try {
+      const fd = new FormData();
+      fd.append("courseId", thumbnailTarget.rowKey);
+      fd.append("file", thumbnailFile);
+      const res = await fetch("/api/admin/courses/thumbnail", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setThumbnailError(data.message || "Upload failed");
+        setUploadingThumbnail(false);
+        return;
+      }
+      closeThumbnailModal();
+      loadCourses();
+    } catch {
+      setThumbnailError("Upload failed");
+      setUploadingThumbnail(false);
+    }
+  }
+
+  async function removeThumbnail() {
+    if (!thumbnailTarget) return;
+    setUploadingThumbnail(true);
+    try {
+      await fetch(`/api/admin/courses/thumbnail?courseId=${encodeURIComponent(thumbnailTarget.rowKey)}`, {
+        method: "DELETE",
+      });
+      closeThumbnailModal();
+      loadCourses();
+    } catch {
+      setThumbnailError("Failed to remove thumbnail");
+      setUploadingThumbnail(false);
+    }
+  }
+
+  function openPolicyEditor(course: Course) {
+    setPolicyTarget(course);
+    setPolicyDraft({
+      hasAssessment: course.hasAssessment ?? true,
+      passingScorePct:
+        typeof course.passingScore === "number" ? Math.round(course.passingScore * 100) : null,
+      validityPeriodMonths: course.validityPeriodMonths ?? 0,
+    });
+    // Pull the org default so the "use default" hint is accurate
+    fetch("/api/admin/settings")
+      .then((r) => r.json())
+      .then((d) => {
+        const setting = (d.settings || []).find((s: { key: string }) => s.key === "defaultPassingScore");
+        if (setting) {
+          const n = parseFloat(setting.value);
+          if (!Number.isNaN(n)) setOrgDefaultPct(Math.round(n * 100));
+        }
+      })
+      .catch(() => { /* keep the 80% fallback */ });
+  }
+
+  async function savePolicy() {
+    if (!policyTarget || !policyDraft) return;
+    setSavingPolicy(true);
+    try {
+      const updates: Record<string, unknown> = {
+        courseId: policyTarget.rowKey,
+        hasAssessment: policyDraft.hasAssessment,
+      };
+      // null clears the override (course will fall back to org default)
+      updates.passingScore =
+        policyDraft.passingScorePct === null
+          ? null
+          : policyDraft.passingScorePct / 100;
+      // 0 means "never expires" — store as null to clear any existing value
+      updates.validityPeriodMonths =
+        policyDraft.validityPeriodMonths > 0 ? policyDraft.validityPeriodMonths : null;
+
+      const res = await fetch("/api/admin/courses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      const data = await res.json();
+      if (!data.error) {
+        setPolicyTarget(null);
+        setPolicyDraft(null);
+        loadCourses();
+      }
+    } catch { /* keep modal open on error */ }
+    setSavingPolicy(false);
+  }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -132,7 +284,7 @@ export default function ManageCoursesPage() {
           <table className="w-full">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border-default)", backgroundColor: "var(--bg-surface)" }}>
-                {["Course", "Category", "Credits", "Modules", "Status", "Actions"].map((h) => (
+                {["Thumbnail", "Course", "Category", "Modules", "Status", "Actions"].map((h) => (
                   <th
                     key={h}
                     className="text-left px-5 py-3"
@@ -147,6 +299,35 @@ export default function ManageCoursesPage() {
               {filtered.map((course) => (
                 <tr key={course.rowKey} className="hover:bg-[var(--teal-50)] transition-colors duration-150" style={{ borderBottom: "1px solid var(--border-default)" }}>
                   <td className="px-5 py-4">
+                    <button
+                      onClick={() => openThumbnailModal(course)}
+                      className="relative w-12 h-12 rounded-lg overflow-hidden transition-all duration-150 hover:ring-2 hover:ring-[var(--teal-400)] group"
+                      style={{ border: "1px solid var(--border-default)" }}
+                      title={course.thumbnailUrl ? "Replace thumbnail" : "Upload thumbnail"}
+                    >
+                      {course.thumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={course.thumbnailUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#445A73] to-[#A8BDD4]"
+                        >
+                          <IconPhoto size={18} style={{ color: "rgba(255,255,255,0.85)" }} />
+                        </div>
+                      )}
+                      <div
+                        className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                        style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+                      >
+                        <IconPhotoUp size={16} style={{ color: "#fff" }} />
+                      </div>
+                    </button>
+                  </td>
+                  <td className="px-5 py-4">
                     <div style={{ fontFamily: "var(--font-body)", fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>{course.title}</div>
                     <div className="mt-0.5" style={{ fontFamily: "var(--font-body)", fontSize: "11px", color: "var(--text-muted)" }}>
                       {course.duration}{course.accreditation ? ` · ${course.accreditation}` : ""}
@@ -159,9 +340,6 @@ export default function ManageCoursesPage() {
                     >
                       {course.category}
                     </span>
-                  </td>
-                  <td className="px-5 py-4" style={{ fontFamily: "var(--font-body)", fontSize: "14px", fontWeight: 700, color: "var(--text-primary)" }}>
-                    {course.credits}
                   </td>
                   <td className="px-5 py-4" style={{ fontFamily: "var(--font-body)", fontSize: "14px", color: "var(--text-body)" }}>
                     {course.moduleCount}
@@ -210,6 +388,20 @@ export default function ManageCoursesPage() {
                       >
                         <IconExternalLink size={16} style={{ color: "var(--text-muted)" }} />
                       </a>
+                      <button
+                        onClick={() => openThumbnailModal(course)}
+                        className="rounded-lg p-2 transition-colors duration-150 hover:bg-[var(--bg-surface)]"
+                        title={course.thumbnailUrl ? "Replace thumbnail" : "Upload thumbnail"}
+                      >
+                        <IconPhotoUp size={16} style={{ color: "var(--text-muted)" }} />
+                      </button>
+                      <button
+                        onClick={() => openPolicyEditor(course)}
+                        className="rounded-lg p-2 transition-colors duration-150 hover:bg-[var(--bg-surface)]"
+                        title="Edit completion policy"
+                      >
+                        <IconAdjustments size={16} style={{ color: "var(--text-muted)" }} />
+                      </button>
                       <button
                         onClick={() => setDeleteTarget({ id: course.rowKey, title: course.title })}
                         disabled={deleting === course.rowKey}
@@ -292,6 +484,359 @@ export default function ManageCoursesPage() {
               >
                 Delete Course
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Completion-policy editor modal */}
+      {policyTarget && policyDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setPolicyTarget(null); setPolicyDraft(null); }}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative rounded-2xl p-8 w-full max-w-md shadow-2xl"
+            style={{ backgroundColor: "var(--bg-raised)", border: "1px solid var(--border-default)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "20px", color: "var(--text-primary)" }}>
+              Completion policy
+            </h3>
+            <p className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-muted)" }}>
+              {policyTarget.title}
+            </p>
+
+            {/* Has assessment toggle */}
+            <div className="mt-5">
+              <label className="block" style={{ fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                Does this course have a quiz?
+              </label>
+              <p className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+                If no, completion is granted as soon as the learner reaches the last slide.
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                {[
+                  { v: true, label: "Yes, it has a quiz" },
+                  { v: false, label: "No, just slides" },
+                ].map((opt) => (
+                  <button
+                    key={String(opt.v)}
+                    onClick={() => setPolicyDraft({ ...policyDraft, hasAssessment: opt.v })}
+                    className="rounded-full px-4 py-2 transition-colors duration-150"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: policyDraft.hasAssessment === opt.v ? "var(--btn-primary)" : "var(--bg-surface)",
+                      color: policyDraft.hasAssessment === opt.v ? "var(--deep-50)" : "var(--text-body)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Passing score (only if has quiz) */}
+            {policyDraft.hasAssessment && (
+              <div className="mt-6">
+                <label className="block" style={{ fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Minimum score to pass
+                </label>
+                <p className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+                  Learners scoring below this on the course quiz won&apos;t complete.
+                </p>
+
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    onClick={() => setPolicyDraft({ ...policyDraft, passingScorePct: null })}
+                    className="rounded-full px-4 py-2 transition-colors duration-150"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: policyDraft.passingScorePct === null ? "var(--btn-primary)" : "var(--bg-surface)",
+                      color: policyDraft.passingScorePct === null ? "var(--deep-50)" : "var(--text-body)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    Use organization default ({orgDefaultPct}%)
+                  </button>
+                  <button
+                    onClick={() =>
+                      setPolicyDraft({
+                        ...policyDraft,
+                        passingScorePct: policyDraft.passingScorePct ?? orgDefaultPct,
+                      })
+                    }
+                    className="rounded-full px-4 py-2 transition-colors duration-150"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: policyDraft.passingScorePct !== null ? "var(--btn-primary)" : "var(--bg-surface)",
+                      color: policyDraft.passingScorePct !== null ? "var(--deep-50)" : "var(--text-body)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    Custom
+                  </button>
+                </div>
+
+                {policyDraft.passingScorePct !== null && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={policyDraft.passingScorePct}
+                      onChange={(e) => {
+                        const n = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(n)) {
+                          setPolicyDraft({ ...policyDraft, passingScorePct: Math.max(0, Math.min(100, n)) });
+                        }
+                      }}
+                      className="w-24 px-3 py-2 rounded-md text-sm"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        backgroundColor: "var(--bg-surface)",
+                        border: "1px solid var(--border-default)",
+                        color: "var(--text-primary)",
+                      }}
+                    />
+                    <span style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-muted)" }}>
+                      %
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* CE credit validity period */}
+            <div className="mt-6">
+              <label className="block" style={{ fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "var(--text-primary)" }}>
+                CE credit validity (months)
+              </label>
+              <p className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+                How long the credit is valid after completion. After this, learners must retake the course to renew. Leave at 0 if the credit never expires.
+              </p>
+
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                {[
+                  { v: 0, label: "Never expires" },
+                  { v: 12, label: "12 months" },
+                  { v: 24, label: "24 months" },
+                  { v: 36, label: "36 months" },
+                ].map((opt) => (
+                  <button
+                    key={opt.v}
+                    onClick={() => setPolicyDraft({ ...policyDraft, validityPeriodMonths: opt.v })}
+                    className="rounded-full px-4 py-2 transition-colors duration-150"
+                    style={{
+                      fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 600,
+                      backgroundColor: policyDraft.validityPeriodMonths === opt.v ? "var(--btn-primary)" : "var(--bg-surface)",
+                      color: policyDraft.validityPeriodMonths === opt.v ? "var(--deep-50)" : "var(--text-body)",
+                      border: "1px solid var(--border-default)",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-3 flex items-center gap-2">
+                <span style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>Custom:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  step={1}
+                  value={policyDraft.validityPeriodMonths}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    if (!Number.isNaN(n)) {
+                      setPolicyDraft({ ...policyDraft, validityPeriodMonths: Math.max(0, Math.min(120, n)) });
+                    }
+                  }}
+                  className="w-24 px-3 py-2 rounded-md text-sm"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    backgroundColor: "var(--bg-surface)",
+                    border: "1px solid var(--border-default)",
+                    color: "var(--text-primary)",
+                  }}
+                />
+                <span style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-muted)" }}>
+                  months
+                </span>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center justify-end gap-3 mt-7">
+              <button
+                onClick={() => { setPolicyTarget(null); setPolicyDraft(null); }}
+                className="rounded-[5px] px-5 py-2.5 transition-colors duration-150"
+                style={{
+                  fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase",
+                  backgroundColor: "var(--bg-surface)", color: "var(--text-body)", border: "1px solid var(--border-default)",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePolicy}
+                disabled={savingPolicy}
+                className="rounded-[5px] px-5 py-2.5 transition-colors duration-150 hover:opacity-90 disabled:opacity-50"
+                style={{
+                  fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase",
+                  backgroundColor: "var(--btn-primary)", color: "var(--teal-50)",
+                }}
+              >
+                {savingPolicy ? "Saving…" : "Save policy"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thumbnail upload modal */}
+      {thumbnailTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={closeThumbnailModal}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative rounded-2xl p-8 w-full max-w-md shadow-2xl"
+            style={{ backgroundColor: "var(--bg-raised)", border: "1px solid var(--border-default)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 style={{ fontFamily: "var(--font-display)", fontStyle: "italic", fontSize: "20px", color: "var(--text-primary)" }}>
+                  Course thumbnail
+                </h3>
+                <p className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--text-muted)" }}>
+                  {thumbnailTarget.title}
+                </p>
+              </div>
+              <button
+                onClick={closeThumbnailModal}
+                className="rounded-lg p-1.5 transition-colors duration-150 hover:bg-[var(--bg-surface)]"
+                title="Close"
+              >
+                <IconX size={18} style={{ color: "var(--text-muted)" }} />
+              </button>
+            </div>
+
+            {/* Drop zone / preview */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) handleThumbnailFile(f);
+              }}
+              onClick={() => !thumbnailFile && thumbnailInputRef.current?.click()}
+              className="mt-5 rounded-xl flex items-center justify-center cursor-pointer transition-colors duration-150"
+              style={{
+                minHeight: "200px",
+                backgroundColor: isDragging ? "var(--teal-50)" : "var(--bg-surface)",
+                border: `2px dashed ${isDragging ? "var(--teal-400)" : "var(--border-default)"}`,
+              }}
+            >
+              {thumbnailPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={thumbnailPreview}
+                  alt="Preview"
+                  className="max-h-[260px] max-w-full rounded-lg"
+                  style={{ objectFit: "contain" }}
+                />
+              ) : thumbnailTarget.thumbnailUrl ? (
+                <div className="text-center p-6">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={thumbnailTarget.thumbnailUrl}
+                    alt="Current thumbnail"
+                    className="max-h-[180px] max-w-full rounded-lg mx-auto"
+                    style={{ objectFit: "contain" }}
+                  />
+                  <p className="mt-3" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+                    Click or drop to replace
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center p-6">
+                  <IconPhotoUp size={32} style={{ color: "var(--text-muted)" }} className="mx-auto" />
+                  <p className="mt-3" style={{ fontFamily: "var(--font-body)", fontSize: "14px", fontWeight: 600, color: "var(--text-primary)" }}>
+                    Drop an image here, or click to browse
+                  </p>
+                  <p className="mt-1" style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--text-muted)" }}>
+                    JPEG, PNG, or WebP · Max 2MB
+                  </p>
+                </div>
+              )}
+              <input
+                ref={thumbnailInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => handleThumbnailFile(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            {thumbnailError && (
+              <div
+                className="mt-3 rounded-lg p-3"
+                style={{ backgroundColor: "rgba(192, 74, 64, 0.06)", border: "1px solid rgba(192, 74, 64, 0.15)" }}
+              >
+                <p style={{ fontFamily: "var(--font-body)", fontSize: "12px", color: "#C04A40" }}>
+                  {thumbnailError}
+                </p>
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="flex items-center justify-between gap-3 mt-6">
+              {thumbnailTarget.thumbnailUrl && !thumbnailFile ? (
+                <button
+                  onClick={removeThumbnail}
+                  disabled={uploadingThumbnail}
+                  className="rounded-[5px] px-4 py-2.5 transition-colors duration-150 hover:opacity-90 disabled:opacity-50"
+                  style={{
+                    fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase",
+                    backgroundColor: "transparent", color: "#C04A40", border: "1px solid rgba(192, 74, 64, 0.3)",
+                  }}
+                >
+                  Remove
+                </button>
+              ) : <div />}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={closeThumbnailModal}
+                  disabled={uploadingThumbnail}
+                  className="rounded-[5px] px-5 py-2.5 transition-colors duration-150 disabled:opacity-50"
+                  style={{
+                    fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase",
+                    backgroundColor: "var(--bg-surface)", color: "var(--text-body)", border: "1px solid var(--border-default)",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={uploadThumbnail}
+                  disabled={!thumbnailFile || uploadingThumbnail}
+                  className="rounded-[5px] px-5 py-2.5 transition-colors duration-150 hover:opacity-90 disabled:opacity-50"
+                  style={{
+                    fontFamily: "var(--font-label)", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase",
+                    backgroundColor: "var(--btn-primary)", color: "var(--teal-50)",
+                  }}
+                >
+                  {uploadingThumbnail ? "Uploading…" : "Upload"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

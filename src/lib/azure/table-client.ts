@@ -13,6 +13,8 @@ const TABLE_NAMES = {
   enrollments: "enrollments",
   sessions: "sessions",
   auditLog: "auditLog",
+  launchTokens: "launchTokens",
+  globalSettings: "globalSettings",
 } as const;
 
 type TableName = keyof typeof TABLE_NAMES;

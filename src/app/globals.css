@@ -205,10 +205,20 @@
   --btn-sky:         #2E7EC0;
   --btn-danger:      #C04A40;
 
-  /* Fonts */
-  --font-display:    'Instrument Serif', Georgia, serif;
-  --font-label:      'Forum', Georgia, serif;
-  --font-body:       'Domine', Georgia, serif;
+  /* Default sans (used by Tailwind's font-sans utility) */
+  --font-sans: var(--font-public-sans), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── Fonts: Healthcare Compliance Typography (USWDS Federal Standard) ──
+   * Public Sans: USWDS official sans (healthcare.gov, Medicare.gov, CMS)
+   * Source Serif 4: USWDS official serif companion (editorial / hero)
+   * Loaded via next/font/google in layout.tsx → CSS variables.
+   * --font-display: hero/page titles, course names (Source Serif 4, optional italic)
+   * --font-label:   nav/buttons/labels (Public Sans, uppercase + tracking)
+   * --font-body:    body copy, descriptions, forms (Public Sans)
+   */
+  --font-display:    var(--font-source-serif), Georgia, 'Times New Roman', serif;
+  --font-label:      var(--font-public-sans), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body:       var(--font-public-sans), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
   /* Type scale — Display (Instrument Serif) */
   --text-display-xl: 36px;
