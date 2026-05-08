@@ -83,6 +83,19 @@ export async function POST(request: NextRequest) {
     const contentType = request.headers.get("Content-Type") || "";
     let statements: XAPIStatement[];
 
+    // Reject other multipart types — only multipart/mixed is valid for xAPI
+    // statement requests with attachments. multipart/form-data is explicitly
+    // not allowed (per xAPI §4.1.11.5).
+    if (
+      contentType.toLowerCase().startsWith("multipart/") &&
+      !contentType.toLowerCase().includes("multipart/mixed")
+    ) {
+      return xapiError(
+        `multipart Content-Type "${contentType}" is not allowed; use multipart/mixed for statements with attachments`,
+        400
+      );
+    }
+
     if (contentType.includes("multipart/mixed")) {
       // Parse multipart/mixed with attachments
       const boundaryMatch = contentType.match(/boundary=([^\s;]+)/);
@@ -91,7 +104,19 @@ export async function POST(request: NextRequest) {
       }
 
       const rawBody = Buffer.from(await request.arrayBuffer());
-      const { statementsJson, attachments } = parseMultipartMixed(rawBody, boundaryMatch[1]);
+      let statementsJson: string;
+      let attachments: ReturnType<typeof parseMultipartMixed>["attachments"];
+      try {
+        const parsed = parseMultipartMixed(rawBody, boundaryMatch[1]);
+        statementsJson = parsed.statementsJson;
+        attachments = parsed.attachments;
+      } catch (parseErr) {
+        // Multipart parse / structural errors → 400, not 500
+        return xapiError(
+          parseErr instanceof Error ? parseErr.message : "Invalid multipart/mixed body",
+          400
+        );
+      }
 
       let parsed: unknown;
       try {

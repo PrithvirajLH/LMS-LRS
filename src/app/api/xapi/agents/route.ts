@@ -24,6 +24,17 @@ export async function GET(request: NextRequest) {
       return xapiError("agent must be a valid JSON agent object", 400);
     }
 
+    // Per xAPI §4.1.2.1, the agent MUST have exactly one IFI to be queryable.
+    const ifiCount = ["mbox", "mbox_sha1sum", "openid", "account"].filter(
+      (k) => (agentObj as Record<string, unknown>)[k] !== undefined
+    ).length;
+    if (ifiCount !== 1) {
+      return xapiError(
+        `agent must have exactly one IFI (mbox, mbox_sha1sum, openid, or account), found ${ifiCount}`,
+        400
+      );
+    }
+
     const ifi = extractActorIFI(agentObj);
     const stmtTable = await getTableClient("statements");
     const now = new Date();

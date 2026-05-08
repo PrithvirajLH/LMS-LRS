@@ -46,23 +46,47 @@ export function parseMultipartMixed(
     throw new Error("No parts found in multipart/mixed body");
   }
 
-  // First part: statement JSON
+  // First part: statement JSON. Per xAPI §4.1.11.5, the first part of a
+  // multipart/mixed request MUST be Content-Type: application/json.
   const firstPart = parts[0];
   const { headers: firstHeaders, body: statementsBody } = splitHeadersAndBody(firstPart);
+  const firstContentType = (getHeader(firstHeaders, "Content-Type") || "").toLowerCase();
+  if (!firstContentType.includes("application/json")) {
+    throw new Error(
+      `First part of multipart/mixed body MUST have Content-Type: application/json (got "${firstContentType}")`
+    );
+  }
   const statementsJson = statementsBody.toString("utf-8");
 
-  // Remaining parts: attachments
+  // Remaining parts: attachments. Each MUST carry the X-Experience-API-Hash
+  // header AND MUST NOT be application/json (which would mean another set of
+  // statements split across parts — not allowed).
   const attachments: ParsedAttachment[] = [];
   for (let i = 1; i < parts.length; i++) {
     const { headers, body: attachBody } = splitHeadersAndBody(parts[i]);
     const contentType = getHeader(headers, "Content-Type") || "application/octet-stream";
     const hashHeader = getHeader(headers, "X-Experience-API-Hash");
 
-    // Compute SHA-256 of the attachment content
-    const computedHash = createHash("sha256").update(attachBody).digest("hex");
-    const hash = hashHeader || computedHash;
+    if (contentType.toLowerCase().includes("application/json")) {
+      throw new Error(
+        "Statements MUST be in the first multipart part only — additional application/json parts are not allowed"
+      );
+    }
+    if (!hashHeader) {
+      throw new Error(
+        `Attachment part ${i} is missing required header "X-Experience-API-Hash"`
+      );
+    }
 
-    attachments.push({ contentType, hash, content: attachBody });
+    // Verify the supplied hash matches what we computed from the bytes.
+    const computedHash = createHash("sha256").update(attachBody).digest("hex");
+    if (hashHeader !== computedHash) {
+      throw new Error(
+        `Attachment X-Experience-API-Hash mismatch (header=${hashHeader}, computed=${computedHash})`
+      );
+    }
+
+    attachments.push({ contentType, hash: hashHeader, content: attachBody });
   }
 
   return { statementsJson, attachments };
@@ -117,24 +141,40 @@ export async function storeAttachment(attachment: ParsedAttachment): Promise<voi
 }
 
 /**
- * Validate that all attachments referenced in statements have matching parts.
+ * Validate that all attachments referenced in statements have matching parts,
+ * AND that there are no orphaned multipart sections beyond what the statements
+ * actually reference (xAPI §4.1.11.5 — excess parts are not allowed).
  */
 export function validateAttachments(
   statementsJson: unknown[],
   attachments: ParsedAttachment[]
 ): string | null {
   const attachmentHashes = new Set(attachments.map((a) => a.hash));
+  // Track all sha2 values that appear on any attachment metadata, regardless
+  // of whether the attachment carries a fileUrl (fileUrl attachments MAY
+  // also include their binary content as a multipart part).
+  const referencedHashes = new Set<string>();
 
   for (const stmt of statementsJson) {
     const s = stmt as { attachments?: Array<{ sha2: string; fileUrl?: string }> };
     if (!s.attachments) continue;
 
     for (const att of s.attachments) {
-      // Attachments with fileUrl don't need a binary part
+      referencedHashes.add(att.sha2);
+      // Only require a binary part when the statement attachment does NOT
+      // include a fileUrl fallback.
       if (att.fileUrl) continue;
       if (!attachmentHashes.has(att.sha2)) {
         return `Attachment with SHA-256 hash ${att.sha2} referenced in statement but not found in multipart parts`;
       }
+    }
+  }
+
+  // Reject excess multipart sections — every supplied attachment part must
+  // correspond to some attachment metadata in the statements.
+  for (const att of attachments) {
+    if (!referencedHashes.has(att.hash)) {
+      return `Multipart contains an attachment part (hash ${att.hash}) that is not referenced by any statement`;
     }
   }
 

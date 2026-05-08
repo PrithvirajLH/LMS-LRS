@@ -71,24 +71,44 @@ function isValidUUID(value: string): boolean {
 }
 
 // ── ISO 8601 timestamp validation ──
+// Strict ISO 8601 with explicit UTC offset. Per xAPI 1.0.3 §4.6:
+// timestamps MUST be in UTC and the "-00:00" / "-0000" offsets are rejected
+// (they signify "UTC equivalent with unknown origin" per ISO 8601, which the
+// conformance suite treats as ambiguous).
+const TIMESTAMP_RE =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})$/;
+
 function isValidTimestamp(value: string): boolean {
+  const m = TIMESTAMP_RE.exec(value);
+  if (!m) return false;
+  const offset = m[1];
+  // Reject "-00:00" and "-0000" — ambiguous in ISO 8601
+  if (offset === "-00:00" || offset === "-0000") return false;
+  // Make sure Date.parse also accepts it (catches edge cases like Feb 30)
   return !isNaN(Date.parse(value));
 }
 
 // ── ISO 8601 duration validation ──
-// Must accept: P4W (weeks), fractional values in various positions, PT1H30M etc.
-const DURATION_RE =
-  /^P(?:(\d+(?:\.\d+)?Y)?(\d+(?:\.\d+)?M)?(\d+(?:\.\d+)?W)?(\d+(?:\.\d+)?D)?(T(?:(\d+(?:\.\d+)?H)?(\d+(?:\.\d+)?M)?(\d+(?:\.\d+)?S)?)?)?)?$/;
+// xAPI accepts standard ISO 8601 durations. Per ISO 8601:2004 §4.4.3.2,
+// the "weeks" form (PnW) is mutually exclusive with the other date components.
+// So P4W is valid; P4W1D is NOT.
+const DURATION_FULL_RE =
+  /^P(\d+(?:\.\d+)?Y)?(\d+(?:\.\d+)?M)?(\d+(?:\.\d+)?D)?(T(\d+(?:\.\d+)?H)?(\d+(?:\.\d+)?M)?(\d+(?:\.\d+)?S)?)?$/;
+const DURATION_WEEKS_RE = /^P\d+(?:\.\d+)?W$/;
 
 function isValidDuration(value: string): boolean {
   if (!value.startsWith("P")) return false;
   if (value === "P") return false; // bare P with nothing
-  const match = DURATION_RE.exec(value);
+
+  // Weeks form: PnW. Per ISO 8601, weeks cannot be combined with other units.
+  if (DURATION_WEEKS_RE.test(value)) return true;
+
+  const match = DURATION_FULL_RE.exec(value);
   if (!match) return false;
   // Must have at least one component after P
-  // match[0] is the full match; groups 1-8 are the components
-  const hasDate = match[1] || match[2] || match[3] || match[4];
-  const hasTime = match[6] || match[7] || match[8];
+  // groups 1-3 are date (Y, M, D); group 4 is the T-section; 5-7 are time (H, M, S)
+  const hasDate = match[1] || match[2] || match[3];
+  const hasTime = match[5] || match[6] || match[7];
   const hasT = value.includes("T");
   // If T is present, there must be at least one time component
   if (hasT && !hasTime) return false;
@@ -448,6 +468,13 @@ function validateStatementRef(ref: unknown, path: string): void {
   // Reject unknown properties
   rejectUnknownProperties(r, STATEMENT_REF_PROPS, path);
 
+  // objectType is case-sensitive per xAPI spec — reject "statementref" etc.
+  if (r.objectType !== undefined && r.objectType !== "StatementRef") {
+    throw new ValidationError(
+      `${path}.objectType: must be exactly "StatementRef" (case-sensitive), got "${r.objectType}"`
+    );
+  }
+
   if (r.id === undefined || r.id === null) {
     throw new ValidationError(`${path}.id: required for StatementRef`);
   }
@@ -739,6 +766,13 @@ function validateContext(ctx: unknown, path: string, objectType: string = "Activ
     }
   }
   if (c.statement !== undefined) {
+    // xAPI §4.1.6.4: context.statement MUST NOT be present when the
+    // Statement Object is a SubStatement or StatementRef.
+    if (objectType === "SubStatement" || objectType === "StatementRef") {
+      throw new ValidationError(
+        `${path}.statement: not allowed when the Statement's Object is a ${objectType}`
+      );
+    }
     validateStatementRef(c.statement, `${path}.statement`);
   }
 
@@ -764,6 +798,15 @@ function validateAuthority(authority: unknown, path: string): void {
   }
 
   if (objectType === "Group") {
+    // Per xAPI §4.1.10.5: authority Group MUST be an Anonymous Group —
+    // it represents an OAuth client + user pair and MUST NOT itself carry
+    // any IFI (mbox / mbox_sha1sum / openid / account).
+    const groupIfis = countIFIs(a);
+    if (groupIfis > 0) {
+      throw new ValidationError(
+        `${path}: authority Group MUST be an Anonymous Group (no IFI on the group itself)`
+      );
+    }
     // OAuth consumer: Group with exactly 2 members
     if (!a.member || !Array.isArray(a.member)) {
       throw new ValidationError(
@@ -923,9 +966,15 @@ export function validateStatement(stmt: unknown, index?: number): void {
     }
   }
 
-  // Optional: version
+  // Optional: version — per xAPI 1.0.3 §4.1.10, MUST match "1.0.x" semver
+  // (we accept any 1.0.x patch level; 0.x and 1.1+ are rejected).
   if (s.version !== undefined) {
     assertIsString(s.version, `${prefix}.version`);
+    if (!/^1\.0(?:\.\d+)?$/.test(s.version as string)) {
+      throw new ValidationError(
+        `${prefix}.version: must be "1.0" or "1.0.x" (got "${s.version}")`
+      );
+    }
   }
 
   // Optional: attachments

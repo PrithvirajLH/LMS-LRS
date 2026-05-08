@@ -16,16 +16,36 @@ export async function GET(request: NextRequest) {
     const activityId = request.nextUrl.searchParams.get("activityId");
     if (!activityId) return xapiError("activityId parameter is required", 400);
 
-    // Find the most recent statement referencing this activity to get the best definition
+    // Per xAPI 1.0.3 §4.1.13.1 / XAPI-00254: the Activity Object returned from
+    // GET /activities MUST contain ALL available information about that activity
+    // collected from ANY statement that targets it. In particular, language maps
+    // (name, description) MUST be merged so every locale ever supplied appears.
     const stmtTable = await getTableClient("statements");
     const now = new Date();
+    const merged: Record<string, unknown> = {};
 
-    // Scan last 6 months for this activity
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let bestDefinition: Record<string, any> | null = null;
+    function mergeDefinition(into: Record<string, unknown>, src: Record<string, unknown>) {
+      for (const [key, value] of Object.entries(src)) {
+        const existing = into[key];
+        // Language maps (name, description) and the like — merge by locale.
+        if (
+          value !== null &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          existing !== null &&
+          typeof existing === "object" &&
+          !Array.isArray(existing)
+        ) {
+          mergeDefinition(existing as Record<string, unknown>, value as Record<string, unknown>);
+        } else if (existing === undefined) {
+          into[key] = value;
+        }
+        // For scalar/array values that already exist, keep the first one we saw.
+      }
+    }
 
+    // Scan last 6 months for any statement that targets this activityId
     for (let i = 0; i < 6; i++) {
-      if (bestDefinition) break;
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const pk = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
@@ -39,21 +59,12 @@ export async function GET(request: NextRequest) {
         const stmt = JSON.parse(json) as XAPIStatement;
         const obj = stmt.object as { id?: string; definition?: Record<string, unknown> };
         if (obj.definition) {
-          // Merge definitions — later ones fill in gaps
-          if (!bestDefinition) {
-            bestDefinition = { ...(obj.definition as Record<string, unknown>) };
-          } else {
-            const def = obj.definition as Record<string, unknown>;
-            for (const key of Object.keys(def)) {
-              if (!(key in bestDefinition)) {
-                (bestDefinition as Record<string, unknown>)[key] = def[key];
-              }
-            }
-          }
+          mergeDefinition(merged, obj.definition);
         }
-        break; // One statement with a definition is enough
       }
     }
+
+    const bestDefinition = Object.keys(merged).length > 0 ? merged : null;
 
     return xapiResponse({
       id: activityId,
